@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>MpPageRouter</title>
+    <style>
+        :root {
+            --safe-area-inset-top: env(safe-area-inset-top);
+            --safe-area-inset-bottom: env(safe-area-inset-bottom);
+            --safe-area-inset-left: env(safe-area-inset-left);
+            --safe-area-inset-right: env(safe-area-inset-right);
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .ios-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 44px;
+            padding-top: env(safe-area-inset-top);
+            backgroundColor: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(229, 229, 231, 0.3);
+            box-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            z-index: 999;
+            overflow: hidden;
+            /*position: relative; */
+            /* 新增：为绝对定位子元素提供参考 */
+        }
+
+        .nav-title {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 17px;
+            font-weight: 500;
+            width: max-content; /* 宽度自适应内容 */
+        }
+
+        .back-btn {
+            position: absolute;
+            left: 9px;
+            display: none;
+            align-items: center;
+            height: 44px;
+            padding: 0 8px 0 0;
+            background: transparent;
+            border: none;
+            color: #007aff;
+            font-size: 17px;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            z-index: 1; /* 确保按钮在标题上层 */
+        }
+
+        .back-btn::before {
+            content: "";
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-left: 2.5px solid #007aff;
+            border-bottom: 2.5px solid #007aff;
+            transform: rotate(45deg);
+            box-shadow: -0.5px 0.5px 0 rgba(0, 0, 0, 0.1);
+            margin-left: 2.5px;
+            display: var(--back-display, inline-block);
+        }
+
+        /* 右侧样式（和左侧对称） */
+        .right-bar {
+            position: absolute;
+            right: 8px;
+            display: flex;
+            align-items: center;
+            height: 44px;
+            background: transparent;
+            padding: 0;
+            margin: 0;
+            border: none;
+            color: #007aff; /* 和左侧按钮同颜色 */
+            font-size: 17px; /* 和左侧按钮同字号 */
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent; /* 消除点击高亮 */
+            user-select: none; /* 禁止文字选中 */
+            z-index: 1; /* 确保在标题上层 */
+        }
+        .barItem:active {
+            /* 点击时轻微透明 */
+            opacity: 0.7;
+        }
+        .barItem {
+            animation: fadeIn 0.25s ease forwards;
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        #page-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 99;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .page-iframe {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+            /* iOS 原生动画参数：时长0.25s + 原生曲线 */
+            transition: transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1),
+            opacity 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+            pointer-events: none;
+            overflow-x: hidden;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            background: white;
+            z-index: 1;
+        }
+        /* 初始状态：所有页面在右侧 */
+        .page-iframe {
+            transform: translateX(100vw);
+            opacity: 0;
+        }
+        /* 激活态：新页滑到中间（push时） */
+        .page-iframe.active {
+            transform: translateX(0);
+            opacity: 1;
+            pointer-events: auto;
+            z-index: 10; /* 新页在最上层 */
+            box-shadow: -8px 0 15px rgba(0, 0, 0, 0.05); /* iOS 原生阴影 */
+        }
+        /* Push时：上一页的视差位移（左移20%屏宽） */
+        .page-iframe.prev-page {
+            transform: translateX(-20%); /* 1/5屏宽，iOS原生比例 */
+            opacity: 1;
+            z-index: 1; /* 上一页在下层 */
+        }
+        /* Pop时：当前页滑出（右移100%屏宽） */
+        .page-iframe.back {
+            transform: translateX(100vw);
+            opacity: 0.95; /* iOS 原生轻微透明 */
+            z-index: 10;
+        }
+        /* 初始页：仅首次加载无动画，后续允许视差动画 */
+        .page-iframe.initial.active {
+            /* 只取消首次加载的过渡，不影响后续的prev-page动画 */
+            transition: none;
+            transform: translateX(0);
+            opacity: 1;
+            box-shadow: none;
+        }
+        /* 新增：首页作为上一页时，允许触发视差偏移（覆盖initial的transition:none） */
+        .page-iframe.initial.prev-page {
+            transition: transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1),
+            opacity 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+            transform: translateX(-20%); /* 强制左移1/5屏宽 */
+            opacity: 1;
+        }
+
+    </style>
+</head>
+<body>
+<div class="ios-nav">
+    <button class="back-btn barItem" id="backBtn"></button>
+    <div class="nav-title" id="navTitle">首页</div>
+    <button class="right-bar" id="rightBar"></button>
+</div>
+<div id="page-container">
+    <!-- <iframe class="page-iframe" id="myIframe" src="./weblist.html"></iframe> -->
+</div>
+<script type="text/javascript" src="./src/MpPageRouter.js"></script>
+<!-- <script type="text/javascript" src="http://129.204.117.172/static/js/MpPageRouter.js"></script> -->
+
+<script>
+
+    // 初始化页面管理器
+    let navRouter;
+    window.addEventListener('load', () => {
+        navRouter = new MpPageRouter({
+            containerId: 'page-container',
+            backBtnId: 'backBtn',
+            navTitleId: 'navTitle',
+            rightBarId: 'rightBar',
+            rootPath: './pages/message.html',
+            rootTitle: '首页'
+        });
+    });
+
+    const navTitle = document.getElementById("navTitle");
+    navTitle.addEventListener('click',function(){
+        receiveNativeMessage({});
+    })
+    function receiveNativeMessage(body) {
+        let win = window.currentWindow();
+        console.log(win.location);
+        // 封装成健壮的函数，避免全局变量污染
+        try {
+            // 潜在bug2：校验 win 对象和 receiveNativeMessage 方法是否存在
+            if (win && typeof win.receiveNativeMessage === 'function') {
+                // 传递有意义的参数（而非空对象），方便原生端识别事件
+                win.receiveNativeMessage(body);
+                //console.log('成功调用 receiveNativeMessage，消息已发送');
+            } else {
+                // 友好的错误提示，而非直接报错中断程序
+                console.error('receiveNativeMessage 方法不存在，无法发送原生消息');
+            }
+            // 潜在bug3：安全打印 location，避免属性不存在报错
+            //console.log('当前窗口地址：', win?.location?.href || '未知地址');
+
+        } catch (error) {
+            // 潜在bug4：捕获所有异常，避免单个错误导致整个点击事件失效
+            console.error('调用原生消息方法时发生异常：', error);
+        }
+    }
+    function viewDidAppear(message) {
+        // window.parent.setTabBarHidden(true);
+        // console.log('收到父页面消息 - viewDidAppear：', message);
+        console.log(`-viewDidAppear -path：` + window.location.pathname + window.location.search);
+        const currentPage = navRouter.pageStack[navRouter.pageStack.length - 1];
+        const currentIframe = currentPage.iframe;
+        if (currentIframe) {
+            navRouter.sendPageMessage(currentIframe, {
+                type: 'onShow',
+                data: { isBack: false, timestamp: Date.now() },
+                stackLength: navRouter.pageStack.length
+            });
+        }
+    }
+    function viewDidDisappear(message) {
+        // console.log('收到父页面消息 - viewDidDisappear：', message);
+        console.log(`-viewDidDisappear -path：` + window.location.pathname + window.location.search);
+        const currentPage = navRouter.pageStack[navRouter.pageStack.length - 1];
+        const currentIframe = currentPage.iframe;
+        if (currentIframe) {
+            navRouter.sendPageMessage(currentIframe, {
+                type: 'onHide',
+                data: { to: currentPage.path, isBack: false, timestamp: Date.now() }
+            });
+        }
+    }
+</script>
+</body>
+</html>

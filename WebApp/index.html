@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <!-- 开启独立WebApp模式（Web‑Clip） -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <!-- 【核心】透明状态栏，内容穿透到状态栏后方 -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="WebApp">
+    <link rel="apple-touch-icon" href="https://yuanbao.tencent.com/favicon.ico">
+    <!-- 引入Font Awesome-->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
+    <title>WebApp demo</title>
+    <style type="text/css">
+        :root {
+            --safe-area-inset-top: env(safe-area-inset-top);
+            --safe-area-inset-bottom: env(safe-area-inset-bottom);
+            --safe-area-inset-left: env(safe-area-inset-left);
+            --safe-area-inset-right: env(safe-area-inset-right);
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+            /* 核心1：禁止所有元素横向溢出 */
+            max-width: 100%;
+            /*1.3 add*/
+            /*overflow-x: hidden;*/
+        }
+        body {
+            min-height: 100vh;
+            padding: 0;
+            overflow: hidden; /* 禁止body滚动，避免与iframe滚动冲突 */
+            /* 核心2：禁止触摸横向滑动 */
+            touch-action: pan-y;
+            -webkit-overflow-scrolling: touch; /* 优化iOS纵向滚动体验 */
+            /*1.3 add*/
+            overflow: hidden; /* 禁止整个页面滚动 */
+            height: 100vh;
+            width: 100vw;
+        }
+        /* 内容容器：全屏，让iframe能延伸到导航栏和选项栏下方 */
+        .content {
+            width: 100%;
+            height: 100vh; /* 全屏高度 */
+            position: relative;
+            /* 确保容器本身无横向滚动 */
+            /*1.3 add*/
+            /*overflow-x: hidden;*/
+            overflow: hidden; /* 禁止整个页面滚动 */
+        }
+        /* iframe样式：宽高100%占满content */
+        .content iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            /* 清除边框和滚动条（可根据需求调整） */
+            border: none;
+            /* 核心3：iframe只允许纵向滚动 */
+            /*1.3 add*/
+            /*overflow-y: auto;*/
+            /*overflow-x: hidden;*/
+            overflow: hidden; /* 禁止整个页面滚动 */
+            /* 禁止iframe内缩放 */
+            -webkit-overflow-scrolling: touch;
+        }
+        /* 所有iframe默认隐藏，通过active类显示 */
+        .page-iframe {
+            display: none;
+        }
+        /* 激活状态的iframe显示 */
+        .page-iframe.active {
+            display: block;
+        }
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /*z-index: 100;*/
+        }
+        /* 加载动画样式 */
+        .loader {
+            width: 48px;
+            height: 48px;
+            border: 5px solid #f3f3f3;
+            border-bottom-color: #3B82F6;
+            border-radius: 50%;
+            animation: rotation 1s linear infinite;
+        }
+        @keyframes rotation {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* 选项栏：固定底部，毛玻璃效果 */
+        .footer {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding-bottom: constant(safe-area-inset-bottom);
+            padding-bottom: env(safe-area-inset-bottom);
+            height: calc(49px + constant(safe-area-inset-bottom));
+            height: calc(49px + env(safe-area-inset-bottom));
+            background-color: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 -1px 10px rgba(0, 0, 0, 0.05);
+            z-index: 99; /* 确保在iframe上方 */
+            /* 确保底部栏无横向溢出 */
+            overflow:hidden;
+        }
+        /* 选项卡样式保持不变 */
+        .tabs-container {
+            display: flex;
+            height: 49px;
+            /* 确保选项卡容器无横向溢出 */
+            overflow:hidden;
+        }
+        .tab-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: #666;
+            cursor: pointer;
+            padding-top: 5px;
+            outline: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .tab-icon {
+            font-size: 20px;
+            margin-bottom: 2px;
+        }
+        .tab-item.active {
+            color: #2563eb;
+        }
+    </style>
+</head>
+<body>
+<div class="content" id="iframeContainer">
+    <!-- 加载动画容器 -->
+    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+        <div class="loader"></div>
+    </div>
+</div>
+<div class="footer" id="tabbar">
+    <div class="tabs-container" id="tabsContainer">
+        <!-- JS动态渲染tab-item -->
+    </div>
+</div>
+<script>
+    // ========== 抽取tab配置数组（只在这里修改菜单） ==========
+    const tabList = [
+        { page: 'homeNav', icon: 'fa-home', label: '首页' },
+        { page: 'fxNav', icon: 'fa-compass', label: '发现' },
+        { page: 'fbNav', icon: 'fa-plus-circle', label: '发布' },
+        { page: 'messageNav', icon: 'fa-bell', label: '通知' },
+        { page: 'wdNav', icon: 'fa-user', label: '我的' },
+        { page: 'scrollTest', icon: 'fa-user', label: 'Test' }
+    ];
+
+    const tabsContainer = document.getElementById('tabsContainer');
+    // 动态渲染tab-item DOM
+    function renderTabs() {
+        tabsContainer.innerHTML = '';
+        tabList.forEach((tab) => {
+            const div = document.createElement('div');
+            div.className = 'tab-item';
+            div.dataset.page = tab.page;
+            div.innerHTML = `<i class="tab-icon fa ${tab.icon}"></i><span>${tab.label}</span>`;
+            tabsContainer.appendChild(div);
+        });
+    }
+
+    // 获取容器
+    const iframeContainer = document.getElementById('iframeContainer');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    let tabItems = []; // 由renderTabs之后重新获取
+
+    // 缓存已加载的页面iframe（键：页面名称，值：iframe元素）
+    const pageCache = {};
+    // 缓存每个页面的滚动位置（键：页面名称，值：滚动高度）
+    const scrollPositions = {};
+    // 当前激活的页面名称
+    let currentPageName = null;
+    // 检测DOM变化的定时器
+    let domCheckTimer = null;
+
+    // 初始化tab渲染 + 绑定点击事件
+    function initTabs() {
+        renderTabs();
+        tabItems = document.querySelectorAll('.tab-item');
+        //点击事件
+        tabItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const pageName = item.getAttribute('data-page');
+                // 点击已激活的页面，不做任何操作
+                if (pageName === currentPageName) return;
+                // 切换前保存当前页面的滚动位置
+                saveScrollPosition(currentPageName);
+                // 加载目标页面
+                loadPage(pageName);
+                // 更新导航状态
+                updateNavStatus(pageName);
+            });
+        });
+    }
+
+    // 初始化：默认加载首页
+    setTimeout(() => {
+        initTabs();
+        const fisrtPageName = tabList[0].page;
+        currentPageName = fisrtPageName;
+        loadPage(fisrtPageName);
+        updateNavStatus(currentPageName);
+    }, 1);//500
+
+    // 检测页面是否有内容显示（背景色/元素）
+    function checkPageHasContent(iframe) {
+        try {
+            if (!iframe.contentWindow || !iframe.contentDocument) return false;
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            const iframeBody = iframeDoc.body;
+            if (!iframeBody) return false;
+            // 检测条件：满足任一即认为页面已显示内容
+            const computedStyle = getComputedStyle(iframeBody);
+            // 1. 检测背景色（不是透明/默认值）
+            const bgColor = computedStyle.backgroundColor;
+            const hasBgColor = bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent';
+            // 2. 检测body内有子元素
+            const hasChildElements = iframeBody.children.length > 0;
+            // 3. 检测body高度（不是0）
+            const hasHeight = iframeBody.offsetHeight > 0;
+            // 4. 检测body内有文本内容
+            const hasTextContent = iframeBody.textContent && iframeBody.textContent.trim().length > 0;
+            return hasBgColor || hasChildElements || hasHeight || hasTextContent;
+        } catch (e) {
+            return false;
+        }
+    }
+    // 隐藏加载动画
+    function hideLoadingAnimation() {
+        // 清除检测定时器
+        if (domCheckTimer) {
+            clearInterval(domCheckTimer);
+            domCheckTimer = null;
+        }
+        // 隐藏加载动画
+        loadingOverlay.style.display = 'none';
+        //console.log('tabbar:hideLoadingAnimation '+window.location.pathname + window.location.search);
+    }
+    // 监控页面内容显示状态
+    function monitorPageContent(iframe) {
+        // 清除之前的定时器
+        if (domCheckTimer) {
+            clearInterval(domCheckTimer);
+        }
+        // 每隔50ms检测一次页面内容
+        domCheckTimer = setInterval(() => {
+            const hasContent = checkPageHasContent(iframe);
+            if (hasContent) {
+                // 有内容就立即隐藏
+                hideLoadingAnimation();
+            }
+        }, 50);
+    }
+    // 加载页面（核心逻辑）
+    function loadPage(pageName) {
+        // 显示加载动画
+        loadingOverlay.style.display = 'flex';
+        // 1. 如果页面已缓存，直接显示
+        if (pageCache[pageName]) {
+            // 隐藏当前激活的页面
+            if (currentPageName) {
+                pageCache[currentPageName].classList.remove('active');
+                if (pageCache[currentPageName].contentWindow.viewDidDisappear) {
+                    pageCache[currentPageName].contentWindow.viewDidDisappear({'pageName':currentPageName,'to':pageCache[pageName].src});
+                }
+            }
+            // 显示缓存的页面
+            pageCache[pageName].classList.add('active');
+            // 恢复滚动位置（如果有缓存）
+            restoreScrollPosition(pageName);
+            const iframe = pageCache[pageName];
+            // 调用iframe中的函数
+            if (iframe.contentWindow.viewDidAppear) {
+                iframe.contentWindow.viewDidAppear({'pageName':pageName,'frome':pageCache[currentPageName]?.src});
+            }
+            // 缓存页面：立即开始监控内容，有内容就隐藏动画
+            monitorPageContent(iframe);
+            currentPageName = pageName;
+            return;
+        }
+        // 2. 页面未缓存，创建iframe并缓存
+        const iframe = document.createElement('iframe');
+        iframe.className = 'page-iframe';
+        iframe.src = 'about:blank';
+        // 5. 强制浏览器重绘
+        iframe.getBoundingClientRect();
+        setTimeout(() => {
+            // 设置iframe的真实地址
+            //iframe.src = `index.html?temp=${pageName}`; // 页面路径
+            iframe.src = `${pageName}.html`; // 页面路径
+            // 立即开始监控页面内容（不需要等onload）
+            monitorPageContent(iframe);
+            // 监听iframe加载完成事件（确保内部DOM已就绪）
+            iframe.onload = function() {
+                return ;
+                try {
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    if (!iframeDoc) return;
+                    const iframeBody = iframeDoc.body;
+                    if (!iframeBody) return;
+                    // --------------------------
+                    // 1. 读取iframe内部body原有padding
+                    // --------------------------
+                    const computedStyle = getComputedStyle(iframeBody);
+                    // 解析原有padding-top数值（去除px单位，转为数字）
+                    const originalPaddingTop = parseFloat(computedStyle.paddingTop) || 0;
+                    // 解析原有padding-bottom数值
+                    const originalPaddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
+                    // --------------------------
+                    // 2. 计算需要累加的新值（包含安全区域）
+                    // --------------------------
+                    // 方法：通过临时元素计算CSS变量（env/constant）的实际像素值
+                    function getSafeAreaValue(cssProperty) {
+                        const tempDiv = iframeDoc.createElement('div');
+                        tempDiv.style.position = 'fixed';
+                        tempDiv.style.visibility = 'hidden';
+                        tempDiv.style.height = cssProperty;
+                        iframeDoc.body.appendChild(tempDiv);
+                        const value = parseFloat(getComputedStyle(tempDiv).height) || 0;
+                        iframeDoc.body.removeChild(tempDiv);
+                        return value;
+                    }
+                    // 计算顶部需累加的值：44px + 顶部安全区域
+                    const safeAreaTop = getSafeAreaValue('env(safe-area-inset-top)') ||
+                        getSafeAreaValue('constant(safe-area-inset-top)') || 0;
+                    const addPaddingTop = 44 + safeAreaTop; // 44px基础高度 + 安全区域高度
+                    // 计算底部需累加的值：49px + 底部安全区域
+                    const safeAreaBottom = getSafeAreaValue('env(safe-area-inset-bottom)') ||
+                        getSafeAreaValue('constant(safe-area-inset-bottom)') || 0;
+                    const addPaddingBottom = 49 + safeAreaBottom; // 49px基础高度 + 安全区域高度
+                    // --------------------------
+                    // 3. 累加原有值和新值，重新设置
+                    // --------------------------
+                    const totalPaddingTop = originalPaddingTop + addPaddingTop;
+                    const totalPaddingBottom = originalPaddingBottom + addPaddingBottom;
+                    // 应用最终计算结果（单位：px）
+                    iframeBody.style.paddingTop = `${totalPaddingTop}px`;
+                    iframeBody.style.paddingBottom = `${totalPaddingBottom}px`;
+                    // 关键：给iframe内部body也添加横向禁止滚动的样式
+                    iframeBody.style.overflowX = 'hidden';
+                    iframeBody.style.touchAction = 'pan-y';
+                    iframeBody.style.maxWidth = '100%';
+                    // 其他样式（直接覆盖，非累加）
+                    iframeBody.style.minHeight = '100vh';
+                } catch (e) {
+                    console.error('累加padding失败（可能跨域）：', e);
+                }
+            };
+            //加载失败处理
+            iframe.onerror = () => {
+                hideLoadingAnimation();
+            };
+        }, 10); // 极小延迟，确保动画和加载动画都已渲染
+        // 首次加载时添加到容器
+        iframeContainer.appendChild(iframe);
+        // 存入缓存
+        pageCache[pageName] = iframe;
+        // 隐藏当前激活的页面（如果有）
+        if (currentPageName && pageCache[currentPageName]) {
+            pageCache[currentPageName].classList.remove('active');
+            if (pageCache[currentPageName].contentWindow.viewDidDisappear) {
+                pageCache[currentPageName].contentWindow.viewDidDisappear({'pageName':currentPageName,'to':iframe.src});
+            }
+        }
+        // 显示新页面
+        iframe.classList.add('active');
+        currentPageName = pageName;
+    }
+    // 保存当前页面的滚动位置
+    function saveScrollPosition(pageName) {
+        if (!pageName || !pageCache[pageName]) return;
+        const iframe = pageCache[pageName];
+        // 获取iframe内部页面的滚动高度
+        if (iframe.contentWindow) {
+            scrollPositions[pageName] = iframe.contentWindow.scrollY;
+        }
+    }
+    // 恢复页面的滚动位置
+    function restoreScrollPosition(pageName) {
+        if (!pageName || !pageCache[pageName] || scrollPositions[pageName] === undefined) return;
+        const iframe = pageCache[pageName];
+        // 恢复滚动位置（使用setTimeout确保DOM已更新）
+        setTimeout(() => {
+            if (iframe.contentWindow) {
+                iframe.contentWindow.scrollTo(0, scrollPositions[pageName]);
+            }
+        }, 0);
+    }
+    // 更新导航激活状态
+    function updateNavStatus(activePage) {
+        tabItems.forEach(item => {
+            const isActive = item.getAttribute('data-page') === activePage;
+            if (isActive) {
+                // 添加当前选中状态
+                item.classList.add('active');
+            }else{
+                item.classList.remove('active');
+            }
+        });
+    }
+    function  setTabBarHidden(hidden) {
+        // console.log('setTabBarHidden:'+hidden);
+        const tabBar = document.getElementById('tabbar');
+        tabBar.style.zIndex = hidden ? -99 : 99;
+    }
+    function receiveNativeMessage(body) {
+        if (pageCache[currentPageName].contentWindow.receiveNativeMessage) {
+            pageCache[currentPageName].contentWindow.receiveNativeMessage(body);
+        }
+    }
+</script>
+</body>
+</html>

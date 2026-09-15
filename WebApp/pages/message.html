@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>消息</title>
+  <link rel="stylesheet" href="page.css">
+  <script type="text/javascript" src="../src/MpPageRouter.js"></script>
+  <!-- <script type="text/javascript" src="http://129.204.117.172/static/js/MpPageRouter.js"> -->
+</head>
+<body>
+  <header class="page-nav">
+    <h1 class="page-title">消息</h1>
+  </header>
+  <main class="page-body">
+    <section class="card">
+      <h2>会话</h2>
+      <ul class="list">
+        <li class="row" onclick="rowClick()">
+          <span class="row-ico" style="background:#007aff">👤</span>
+          <span class="row-main"><b>张三</b><small>在吗？晚上一起吃饭</small></span>
+          <span class="row-val">09:41</span><span class="row-chev">›</span>
+        </li>
+        <li class="row" onclick="rowClick()">
+          <span class="row-ico" style="background:#34c759">👥</span>
+          <span class="row-main"><b>前端交流群</b><small>[图片] 这个库真不错</small></span>
+          <span class="row-val">昨天</span><span class="row-chev">›</span>
+        </li>
+        <li class="row" onclick="rowClick()">
+          <span class="row-ico" style="background:#ff9500">🤖</span>
+          <span class="row-main"><b>系统通知</b><small>您的版本已更新</small></span>
+          <span class="row-val">周一</span><span class="row-chev">›</span>
+        </li>
+      </ul>
+    </section>
+  </main>
+</body>
+<script>
+    MpPageLifeCycle.init({
+        onLoad: (data) => {
+        },
+        onShow: (data, stackLength) => {
+                MpSetNavRightBar( ` <div class="barItem" onclick="window.currentWindow().addClick(event)" style="width: 36px;">
+                Add
+                </div>
+                <div class="barItem"  onclick="window.currentWindow().adClick(event)" style="width: 36px;">
+                    Ad
+                </div>
+                 `);
+        },
+        onHide: (data) => {
+                MpSetNavRightBar();
+
+        },
+        onDestroy: () => {
+        }
+    });
+
+    function addClick() {
+        alert('add');
+    }
+    function adClick() {
+        alert('ad');
+    }
+    function rowClick() {
+        MpNavigateTo(
+            `./pages/message.html`,
+            "66",
+            {}
+        );
+    }
+
+</script>
+</html>
