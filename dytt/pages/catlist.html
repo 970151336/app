@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>列表</title>
+  <link rel="stylesheet" href="../vendor/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="./page.css">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js"></script>
+  <script src="./store.js"></script>
+</head>
+<body>
+  <main class="page-body" id="body"><div class="empty"><i class="fa fa-spinner fa-spin"></i> 加载中…</div></main>
+</body>
+<script>
+  function openDetail(id) {
+    const d = getMovieById(id);
+    MpNavigateTo('./pages/detail.html', d ? d.title : '详情', { id: id });
+  }
+  let _type = 'all', _value = 'all', _label = '', _pg = 1, _pagecount = 1, _loading = false, _done = false;
+
+  // 本地（内存）筛选：用于非 tid 模式
+  function pick(type, value) {
+    if (type === 'search') return window.movieSearch(value);
+    if (type === 'all' || !value || value === 'all') return (window.MOVIES || []).slice();
+    if (type === 'class') return window.movieByClass(value);
+    if (type === 'area') return window.movieByArea(value);
+    if (type === 'year') return window.movieByYear(value);
+    if (type === 'lang') return (window.MOVIES || []).filter(x => (x.lang || '').indexOf(value) >= 0);
+    return (window.MOVIES || []).slice();
+  }
+
+  function sectionHead(title, count) {
+    return `<div class="section" style="margin-top:2px"><div class="section-title"><span class="bar"></span>${title}</div>
+      <div class="section-more">${count}</div></div>`;
+  }
+  function gridHTML(list) {
+    return `<div class="poster-grid3">${list.map(d => window.MpUI.posterHTML(d, { badge: d.remarks })).join('')}</div>`;
+  }
+  function appendHTML(list) {
+    const grid = document.getElementById('grid');
+    grid.insertAdjacentHTML('beforeend', list.map(d => window.MpUI.posterHTML(d, { badge: d.remarks })).join(''));
+  }
+
+  function renderEmpty(title) {
+    document.getElementById('body').innerHTML =
+      sectionHead(title, 0) +
+      `<div class="empty"><i class="fa fa-film"></i>
+        <div>该分类暂无内容</div>
+        <div style="font-size:12px;color:var(--text-sub);margin-top:6px">数据源此分类未收录影片，换个分类看看～</div>
+        <button class="btn-fav" style="margin-top:14px" onclick="MpNavigateTo('./pages/category.html','全部分类',{})">浏览全部分类</button>
+      </div>`;
+    window.MpUI.lazyScan();
+  }
+
+  function renderLocal() {
+    const list = pick(_type, _value);
+    const title = _type === 'search' ? `“${_value}” 的搜索结果` : (_value === 'all' ? '全部影片' : _value);
+    if (!list.length) { renderEmpty(title); return; }
+    document.getElementById('body').innerHTML = sectionHead(title, list.length) + gridHTML(list) + `<div style="height:10px"></div>`;
+    window.MpUI.lazyScan();
+  }
+
+  // tid 模式：从实时接口分页拉取 + 上拉加载更多
+  async function loadTidPage(reset) {
+    if (_loading) return;
+    if (!reset && _done) return;
+    _loading = true;
+    try {
+      if (reset) { _pg = 1; _done = false; document.getElementById('body').innerHTML = '<div class="empty"><i class="fa fa-spinner fa-spin"></i> 加载中…</div>'; }
+      else document.getElementById('foot').innerHTML = '<div class="empty" style="padding:14px"><i class="fa fa-spinner fa-spin"></i> 加载更多…</div>';
+      if (typeof window.movieByTid !== 'function') { renderEmpty(_label || '列表'); return; }
+      const r = await window.movieByTid(String(_value), _pg);
+      if (!r) { renderEmpty(_label || '列表'); return; }
+      _pagecount = r.pagecount || 1;
+      if (reset) {
+        if (!r.items || !r.items.length) { renderEmpty(_label || '列表'); return; }
+        document.getElementById('body').innerHTML = sectionHead(_label || '列表', r.total) +
+          `<div class="poster-grid3" id="grid">${r.items.map(d => window.MpUI.posterHTML(d, { badge: d.remarks })).join('')}</div>` +
+          `<div id="foot"></div><div style="height:10px"></div>`;
+      } else {
+        if (r.items && r.items.length) appendHTML(r.items);
+        if (_pg >= _pagecount) { _done = true; document.getElementById('foot').innerHTML = '<div class="empty" style="padding:12px">没有更多了</div>'; }
+        else document.getElementById('foot').innerHTML = '';
+      }
+      window.MpUI.lazyScan();
+    } catch (e) {
+      if (reset) renderEmpty(_label || '列表');
+      console.error('loadTidPage error:', e);
+    } finally {
+      _loading = false;
+    }
+  }
+
+  function onScroll() {
+    if (_type !== 'tid') return;
+    const sc = window.scrollY || document.documentElement.scrollTop || 0;
+    const h = document.documentElement.scrollHeight - window.innerHeight;
+    if (h - sc < 600) loadTidPage(false);
+  }
+
+  MpPageLifeCycle.init({
+    onLoad: (data) => {
+      data = data || {};
+      _type = data.type || 'all'; _value = data.value || 'all'; _label = data.label || '';
+      if (_type === 'tid') { window.addEventListener('scroll', onScroll); loadTidPage(true); }
+      else { whenMoviesReady(() => { renderLocal(); }); renderLocal(); }
+    },
+    onShow: () => {},
+    onHide: () => { if (_type === 'tid') window.removeEventListener('scroll', onScroll); },
+    onDestroy: () => { if (_type === 'tid') window.removeEventListener('scroll', onScroll); }
+  });
+</script>
+</html>

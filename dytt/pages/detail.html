@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>详情</title>
+  <link rel="stylesheet" href="../vendor/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="./page.css">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js"></script>
+  <script src="./store.js"></script>
+</head>
+<body>
+  <main class="page-body" id="body"><div class="empty">加载中…</div></main>
+</body>
+<script>
+  let cur = null;
+  function play(line) { MpNavigateTo('./pages/player.html', cur.title, { id: cur.id, ep: 1, line: line || 'hls' }); }
+  function fav() { window.AppStore.toggleFav(cur); syncBtns(); }
+  function wish() { window.AppStore.toggleWish(cur); syncBtns(); }
+
+  function syncBtns() {
+    const fb = document.querySelector('.btn-fav'); const wb = document.querySelector('.btn-wish');
+    if (fb) { const f = window.AppStore.isFav(cur.id); fb.classList.toggle('is-fav', f); fb.innerHTML = f ? '<i class="fa fa-heart"></i> 已收藏' : '<i class="fa fa-heart"></i> 收藏'; }
+    if (wb) { const w = window.AppStore.isWish(cur.id); wb.classList.toggle('is-wish', w); wb.innerHTML = w ? '<i class="fa fa-bookmark"></i> 已想看' : '<i class="fa fa-bookmark"></i> 想看'; }
+  }
+
+  function coverHTML(d, cls) {
+    const inner = d.pic
+      ? `<img class="cover-img" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" src="${d.pic}" referrerpolicy="no-referrer" alt="${d.title}">`
+      : `<div class="cover-fill" style="background:${d.color}">${d.title}</div>`;
+    return `<div class="${cls}" style="position:relative;overflow:hidden">${inner}</div>`;
+  }
+
+  function render(d) {
+    cur = d;
+    const srcChips = (d.sources && d.sources.length)
+      ? d.sources.map((s, i) => `<div class="ep" onclick="play('${s.name}')">${s.name}</div>`).join('')
+      : `<div class="ep" style="cursor:default;opacity:.7">暂无播放源</div>`;
+    const rec = window.movieRecommend(d, 6);
+    const recHTML = rec.length
+      ? `<div class="section" style="margin-top:18px"><div class="section-title"><span class="bar"></span>相关推荐</div>
+         <div class="poster-grid3">${rec.map(x => window.MpUI.posterHTML(x)).join('')}</div></div>`
+      : '';
+
+    document.getElementById('body').innerHTML = `
+      <div class="detail-hero">
+        ${coverHTML(d, 'cover')}
+        <div class="detail-info">
+          <div class="d-title">${d.title}</div>
+          <div class="d-line">${[d.year, d.area, d.remarks].filter(Boolean).join(' · ')}</div>
+          <div class="d-line actor">导演：${d.director || '—'}</div>
+          <div class="d-line actor">主演：${d.actor || '—'}</div>
+          ${(d.score && d.score > 0) ? `<div class="d-score">★ ${d.score} 分</div>` : (d.remarks ? `<div class="d-line actor">${d.remarks}</div>` : '')}
+          <div class="d-actions">
+            <div class="btn-play" onclick="play('hls')"><i class="fa fa-play"></i> 立即播放</div>
+            <div class="btn-fav" onclick="fav()"><i class="fa fa-heart"></i> 收藏</div>
+            <div class="btn-wish" onclick="wish()"><i class="fa fa-bookmark"></i> 想看</div>
+          </div>
+        </div>
+      </div>
+      <section class="card" style="margin-top:4px">
+        <h2>剧情简介</h2>
+        <div class="desc clamp" id="desc">${d.desc || '暂无简介'}<span class="more" onclick="toggleDesc()"> 展开 ›</span></div>
+      </section>
+      <div class="card" style="margin-top:12px">
+        <h2>基本信息</h2>
+        <div class="tag-row">
+          <span class="tag">类型：${d.genre || '—'}</span>
+          <span class="tag">地区：${d.area || '—'}</span>
+          <span class="tag">年份：${d.year || '—'}</span>
+          <span class="tag">语言：${d.lang || '—'}</span>
+        </div>
+      </div>
+      <div class="ep-head" style="margin-top:16px"><div class="t">播放源</div><div class="c">${d.sources.length} 条线路</div></div>
+      <div class="ep-grid" style="grid-template-columns:repeat(3,1fr)">${srcChips}</div>
+      ${recHTML}
+      <div style="height:18px"></div>
+    `;
+    window.MpUI.lazyScan();
+  }
+
+  function toggleDesc() {
+    const el = document.getElementById('desc');
+    if (!el) return;
+    const open = el.classList.toggle('clamp') === false;
+    el.querySelector('.more').textContent = open ? ' 收起 ‹' : ' 展开 ›';
+  }
+
+  MpPageLifeCycle.init({
+    onLoad: (data) => {
+      (async () => {
+        let d = getMovieById(data.id);
+        if (!d || !d.sources || !d.sources.length) d = await window.MovieAPI.fetchDetail(data.id); // 未并入全局/无源时现场拉取
+        if (!d) { document.getElementById('body').innerHTML = '<div class="empty">未找到该影片</div>'; return; }
+        MpSetNavTitle(d.title);
+        render(d);
+        syncBtns();
+      })();
+    },
+    onShow: () => { if (cur) { window.AppStore.addHistory(cur); syncBtns(); } },
+    onHide: () => {}, onDestroy: () => {}
+  });
+</script>
+</html>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>排行榜</title>
+  <link rel="stylesheet" href="../vendor/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="./page.css">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js"></script>
+</head>
+<body>
+  <main class="page-body" id="body">
+    <div class="section" style="margin-top:2px"><div class="section-title"><span class="bar"></span>电影排行榜</div></div>
+    <div class="seg" id="seg"></div>
+    <ul class="rank-list" id="rankList"></ul>
+  </main>
+</body>
+<script>
+  function openDetail(id) {
+    const d = getMovieById(id);
+    MpNavigateTo('./pages/detail.html', d ? d.title : '详情', { id: id });
+  }
+  function posterHTML(d, opts) { return window.MpUI.posterHTML(d, opts); }
+
+  const KINDS = [
+    { k: 'hot',    n: '热播榜' },
+    { k: 'score',  n: '高分榜' },
+    { k: 'new',    n: '最新榜' },
+    { k: 'classic',n: '经典榜' }
+  ];
+  let cur = 'hot';
+
+  function renderSeg() {
+    document.getElementById('seg').innerHTML = KINDS.map(x =>
+      `<div class="seg-item ${x.k === cur ? 'active' : ''}" onclick="switchKind('${x.k}')">${x.n}</div>`).join('');
+  }
+  function switchKind(k) { cur = k; renderSeg(); renderList(); }
+
+  function listOf(k) {
+    const D = (window.MOVIES || []).slice();
+    if (k === 'score') D.sort((a, b) => b.score - a.score);
+    else if (k === 'new') D.sort((a, b) => String(b.year).localeCompare(String(a.year)));
+    else if (k === 'classic') D.filter(x => Number(x.year) <= 2000).sort((a, b) => b.score - a.score);
+    else D.sort((a, b) => b.score - a.score); // hot
+    return (k === 'classic' ? D.filter(x => Number(x.year) <= 2000) : D).slice(0, 30);
+  }
+
+  function renderList() {
+    const list = listOf(cur);
+    document.getElementById('rankList').innerHTML = list.map((d, i) => {
+      const noCls = i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : '';
+      const inner = d.pic
+        ? `<div class="cover" style="background:#000"><img class="cover-img" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" src="${d.pic}" referrerpolicy="no-referrer"></div>`
+        : `<div class="cover" style="background:${d.color}">${d.title}</div>`;
+      return `<li class="rank-item" onclick="openDetail('${d.id}')">
+        <div class="rank-no ${noCls}">${i + 1}</div>
+        ${inner}
+        <div class="rank-main">
+          <b>${d.title}</b>
+          <div class="rm-sub">${d.year} · ${d.area} · ${d.genre}</div>
+        </div>
+        <div class="rank-score">${d.score}<small>分</small></div>
+      </li>`;
+    }).join('');
+  }
+
+  MpPageLifeCycle.init({
+    onLoad: () => { whenMoviesReady(() => { renderSeg(); renderList(); }); renderSeg(); renderList(); },
+    onShow: () => {}, onHide: () => {}, onDestroy: () => {}
+  });
+</script>
+</html>

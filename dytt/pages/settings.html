@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>设置</title>
+  <link rel="stylesheet" href="../vendor/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="./page.css">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js"></script>
+  <script src="./store.js"></script>
+</head>
+<body>
+  <main class="page-body" id="body">
+    <div class="menu">
+      <div class="menu-item">
+        <div class="mi-ico" style="background:#ff4d4f"><i class="fa fa-database"></i></div>
+        <div class="mi-main">当前数据源</div>
+        <div class="mi-val" id="srcState">—</div>
+      </div>
+      <div class="menu-item" onclick="useLive()">
+        <div class="mi-ico" style="background:#34c759"><i class="fa fa-cloud"></i></div>
+        <div class="mi-main">强制走实时接口</div>
+        <div class="mi-chev"><i class="fa fa-chevron-right"></i></div>
+      </div>
+      <div class="menu-item" onclick="useDemo()">
+        <div class="mi-ico" style="background:#8e8e93"><i class="fa fa-film"></i></div>
+        <div class="mi-main">使用内置演示库</div>
+        <div class="mi-chev"><i class="fa fa-chevron-right"></i></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin:16px 2px;padding:14px">
+      <h2 style="padding:0 0 8px">自定义接口地址（JSON API）</h2>
+      <div class="search-box" style="margin:0">
+        <input id="apiInput" type="url" placeholder="http://域名/miniapp/cjapi" style="background:var(--bg-elev2);border:none;outline:none;color:var(--text);border-radius:10px;padding:0 12px;height:40px;font-size:13px">
+        <div class="go" onclick="saveApi()">保存</div>
+      </div>
+      <div class="hero-text" style="margin:10px 0 0;font-size:12px;color:var(--text-dim)">
+        默认主数据源为 api.yyzy-tv.vip（苹果CMS JSON），经代理
+        http://129.204.117.172/api/proxy_test 转发，已开启 CORS，浏览器可直连加载实时影片
+        （按 tid 分类、支持搜索）。列表接口不含海报，会再批量拉详情补齐。
+        如需切换到其他苹果CMS 风格镜像，填入其接口地址（如 /api.php/provide/vod/）并保存即可。
+      </div>
+    </div>
+
+    <div class="menu">
+      <div class="menu-item" onclick="clearCache()">
+        <div class="mi-ico" style="background:#ff7a45"><i class="fa fa-trash"></i></div>
+        <div class="mi-main">清除收藏/想看/历史</div>
+        <div class="mi-chev"><i class="fa fa-chevron-right"></i></div>
+      </div>
+      <div class="menu-item" onclick="about()">
+        <div class="mi-ico" style="background:#a06bff"><i class="fa fa-info-circle"></i></div>
+        <div class="mi-main">关于电影天堂</div>
+        <div class="mi-val">v1.0</div>
+        <div class="mi-chev"><i class="fa fa-chevron-right"></i></div>
+      </div>
+    </div>
+  </main>
+</body>
+<script>
+  function refreshState() {
+    const live = window.__MOVIES_LIVE;
+    const demo = localStorage.getItem('movie_demo') === '1';
+    const src = (window.MovieAPI && window.MovieAPI.source) || 'yyzy-proxy';
+    const el = document.getElementById('srcState');
+    el.textContent = demo ? '内置演示库' : (live ? (src === 'yyzy-proxy' ? '实时（yyzy 代理）' : '实时（直连接口）') : '内置演示库');
+    el.style.color = (live && !demo) ? 'var(--ok)' : 'var(--text-sub)';
+    const inp = document.getElementById('apiInput');
+    if (inp && !inp.value) inp.value = window.MovieAPI ? window.MovieAPI.base : '';
+  }
+  function useLive() {
+    localStorage.setItem('movie_force_api', '1');
+    localStorage.removeItem('movie_demo');
+    if (confirm('已开启「强制实时」。重新加载数据？')) { window.MovieAPI.load(); location.reload(); }
+  }
+  function useDemo() {
+    localStorage.setItem('movie_demo', '1');
+    localStorage.removeItem('movie_force_api');
+    alert('已切回内置演示库，刷新后生效'); location.reload();
+  }
+  function saveApi() {
+    const v = (document.getElementById('apiInput').value || '').trim();
+    if (!v) { alert('请输入接口地址'); return; }
+    localStorage.setItem('movie_api_base', v);
+    localStorage.setItem('movie_force_api', '1');
+    localStorage.removeItem('movie_demo');
+    alert('已保存，正在重新加载…'); window.MovieAPI.load(); location.reload();
+  }
+  function clearCache() {
+    if (!confirm('确定清除收藏、想看与观看历史？')) return;
+    try { localStorage.removeItem('movie_favs'); localStorage.removeItem('movie_wish'); localStorage.removeItem('movie_history'); } catch (e) {}
+    try { (window.top || window).dispatchEvent(new CustomEvent('appstore', { detail: { type: 'fav', id: null } })); } catch (e) {}
+    alert('已清除');
+  }
+  function about() {
+    alert('电影天堂 v1.0\n\n双层 iframe 架构（MpPageRouter）· 影院暗色主题\n数据：yyzy 苹果CMS JSON（代理转发，实时）+ 内置演示库兜底\n播放：HLS 流媒体（hls.js 本地化）');
+  }
+
+  MpPageLifeCycle.init({
+    onLoad: () => { refreshState(); },
+    onShow: () => { refreshState(); }, onHide: () => {}, onDestroy: () => {}
+  });
+</script>
+</html>

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>我的</title>
+  <link rel="stylesheet" href="../vendor/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="./page.css">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js"></script>
+  <script src="./store.js"></script>
+</head>
+<body>
+  <main class="page-body" id="body">
+    <div class="profile-head">
+      <div class="avatar"><i class="fa fa-film"></i></div>
+      <div class="name">电影迷</div>
+      <div class="mail">在电影天堂，看好电影</div>
+    </div>
+    <div class="stat-row">
+      <div class="stat" onclick="MpNavigateTo('./pages/favlist.html','我的收藏',{type:'fav'})">
+        <div class="num" id="sFav">0</div><div class="lab">收藏</div>
+      </div>
+      <div class="stat" onclick="MpNavigateTo('./pages/favlist.html','想看清单',{type:'wish'})">
+        <div class="num" id="sWish">0</div><div class="lab">想看</div>
+      </div>
+      <div class="stat" onclick="MpNavigateTo('./pages/history.html','观看历史',{})">
+        <div class="num" id="sHis">0</div><div class="lab">历史</div>
+      </div>
+    </div>
+    <div class="menu">
+      <div class="menu-item" onclick="MpNavigateTo('./pages/favlist.html','我的收藏',{type:'fav'})">
+        <div class="mi-ico" style="background:#ff4d4f"><i class="fa fa-heart"></i></div>
+        <div class="mi-main">我的收藏</div><div class="mi-chev"><i class="fa fa-chevron-right"></i></div>
+      </div>
+      <div class="menu-item" onclick="MpNavigateTo('./pages/favlist.html','想看清单',{type:'wish'})">
+        <div class="mi-ico" style="background:#ffd24a"><i class="fa fa-bookmark"></i></div>
+        <div class="mi-main">想看清单</div><div class="mi-chev"><i class="fa fa-chevron-right"></i></div>
+      </div>
+      <div class="menu-item" onclick="MpNavigateTo('./pages/history.html','观看历史',{})">
+        <div class="mi-ico" style="background:#4aa8ff"><i class="fa fa-history"></i></div>
+        <div class="mi-main">观看历史</div><div class="mi-chev"><i class="fa fa-chevron-right"></i></div>
+      </div>
+      <div class="menu-item" onclick="MpNavigateTo('./pages/settings.html','设置',{})">
+        <div class="mi-ico" style="background:#34c759"><i class="fa fa-cog"></i></div>
+        <div class="mi-main">设置</div><div class="mi-chev"><i class="fa fa-chevron-right"></i></div>
+      </div>
+    </div>
+    <div class="menu">
+      <div class="menu-item" onclick="clearCache()">
+        <div class="mi-ico" style="background:#8e8e93"><i class="fa fa-trash"></i></div>
+        <div class="mi-main">清除缓存</div><div class="mi-chev"><i class="fa fa-chevron-right"></i></div>
+      </div>
+      <div class="menu-item" onclick="about()">
+        <div class="mi-ico" style="background:#a06bff"><i class="fa fa-info-circle"></i></div>
+        <div class="mi-main">关于电影天堂</div>
+        <div class="mi-val">v1.0</div><div class="mi-chev"><i class="fa fa-chevron-right"></i></div>
+      </div>
+    </div>
+    <div class="hero-text" style="text-align:center;margin-top:18px">
+      数据来源：优质资源库（苹果CMS）· 仅供学习交流
+    </div>
+  </main>
+</body>
+<script>
+  function refreshStats() {
+    document.getElementById('sFav').textContent = window.AppStore.getFavs().length;
+    document.getElementById('sWish').textContent = window.AppStore.getWishes().length;
+    document.getElementById('sHis').textContent = window.AppStore.getHistory().length;
+  }
+  function clearCache() {
+    if (!confirm('确定清除收藏、想看与观看历史？')) return;
+    try { localStorage.removeItem('movie_favs'); localStorage.removeItem('movie_wish'); localStorage.removeItem('movie_history'); } catch (e) {}
+    // 通知其它 iframe 刷新
+    try { (window.top || window).dispatchEvent(new CustomEvent('appstore', { detail: { type: 'fav', id: null } })); } catch (e) {}
+    refreshStats();
+    alert('已清除');
+  }
+  function about() {
+    alert('电影天堂 v1.0\n\n基于双层 iframe 架构（MpPageRouter）构建的 H5 影音应用。\n数据：优质资源库 / 苹果CMS JSON API（兜底演示库）。\n播放：HLS 流媒体。');
+  }
+
+  let _unsub = null;
+  MpPageLifeCycle.init({
+    onLoad: () => { refreshStats(); _unsub = window.AppStore.subscribe(() => refreshStats()); },
+    onShow: () => { refreshStats(); },
+    onHide: () => {},
+    onDestroy: () => { if (_unsub) _unsub(); }
+  });
+</script>
+</html>

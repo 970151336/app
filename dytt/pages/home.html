@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>首页</title>
+  <link rel="stylesheet" href="../vendor/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="./page.css">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js"></script>
+  <script src="./store.js"></script>
+</head>
+<body>
+  <main class="page-body" id="body">
+    <div class="search-bar" onclick="goSearch()">
+      <i class="fa fa-search"></i><span>搜索电影、演员、导演…</span>
+    </div>
+    <div class="hero" id="hero">
+      <div class="hero-track" id="heroTrack"></div>
+      <div class="hero-dots" id="heroDots"></div>
+    </div>
+    <div class="section" style="margin-top:18px"><div class="section-title"><span class="bar"></span>分类直达</div></div>
+    <div class="qgrid" id="qgrid"></div>
+    <div id="sections"></div>
+    <div style="height:8px"></div>
+  </main>
+</body>
+<script>
+  function goSearch() { MpNavigateTo('./pages/search.html', '搜索', {}); }
+  function goCat(type, value, label) { MpNavigateTo('./pages/catlist.html', label || value, { type: type, value: value }); }
+  function goTid(tid, label) { MpNavigateTo('./pages/catlist.html', label, { type: 'tid', value: String(tid), label: label }); }
+  function goMore() { MpNavigateTo('./pages/category.html', '全部分类', {}); }
+  function openDetail(id) {
+    const d = getMovieById(id);
+    MpNavigateTo('./pages/detail.html', d ? d.title : '详情', { id: id });
+  }
+  function posterHTML(d, opts) { return window.MpUI.posterHTML(d, opts); }
+
+  let _heroIdx = 0, _heroTimer = null;
+  function renderHero(list) {
+    const slides = list.slice(0, 4);
+    const track = document.getElementById('heroTrack');
+    const dots = document.getElementById('heroDots');
+    track.innerHTML = slides.map(d => {
+      const bg = d.pic
+        ? `linear-gradient(180deg, rgba(0,0,0,.15), rgba(0,0,0,.7)), url('${d.pic}')`
+        : d.color;
+      const bgStyle = d.pic ? `${bg};background-size:cover;background-position:center` : bg;
+      const tag = (d.score && d.score > 0)
+        ? `★ ${d.score} 分 · ${d.genre || d.area || ''}`
+        : (d.genre || d.area || d.remarks || '精彩推荐');
+      return `
+      <div class="hero-slide" style="background:${bgStyle}" onclick="openDetail('${d.id}')">
+        <div class="b-inner">
+          <div class="b-tag">${tag}</div>
+          <div class="b-title">${d.title}</div>
+          <div class="b-sub">${d.actor || d.director || ''}</div>
+        </div>
+        <div class="b-play" onclick="event.stopPropagation();play('${d.id}')"><i class="fa fa-play"></i></div>
+      </div>`;
+    }).join('');
+    dots.innerHTML = slides.map((_, i) => `<i class="${i === 0 ? 'on' : ''}"></i>`).join('');
+    _heroIdx = 0;
+    if (_heroTimer) clearInterval(_heroTimer);
+    if (slides.length > 1) {
+      _heroTimer = setInterval(() => {
+        _heroIdx = (_heroIdx + 1) % slides.length;
+        track.style.transform = `translateX(-${_heroIdx * 100}%)`;
+        dots.querySelectorAll('i').forEach((el, i) => el.classList.toggle('on', i === _heroIdx));
+      }, 4000);
+    }
+  }
+  function play(id) {
+    const d = getMovieById(id);
+    if (d) MpNavigateTo('./pages/player.html', d.title, { id: id, ep: 1, line: 'hls' });
+  }
+
+  function renderQgrid() {
+    const tiles = (window.HOME_TIDS || []).concat([{ tid: null, name: '更多', i: 'fa-th-large', c: '#ffd24a' }]);
+    document.getElementById('qgrid').innerHTML = tiles.map(x => {
+      const click = x.tid != null ? `goTid(${x.tid},'${x.name}')` : 'goMore()';
+      return `<div class="qcell" onclick="${click}">
+        <div class="ic" style="color:${x.c}"><i class="fa ${x.i}"></i></div>
+        <span>${x.name}</span>
+      </div>`;
+    }).join('');
+  }
+
+  function renderSections() {
+    const secs = window.movieSections();
+    document.getElementById('sections').innerHTML = secs.map(s => `
+      <div class="section">
+        <div class="section-title"><span class="bar"></span>${s.title}</div>
+        <div class="section-more" onclick="goCat('all','all','全部影片')">全部 ›</div>
+      </div>
+      <div class="h-scroll">${s.list.map(d => posterHTML(d, { badge: d.remarks })).join('')}</div>
+    `).join('');
+    window.MpUI.lazyScan();
+  }
+
+  function render() {
+    const D = window.MOVIES;
+    if (!D || !D.length) return;
+    renderHero(window.movieFeatured());
+    renderQgrid();
+    renderSections();
+  }
+
+  MpPageLifeCycle.init({
+    onLoad: () => { whenMoviesReady(render); render(); },
+    onShow: () => {}, onHide: () => {}, onDestroy: () => { if (_heroTimer) clearInterval(_heroTimer); }
+  });
+</script>
+</html>

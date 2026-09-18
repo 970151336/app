@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>分类</title>
+  <link rel="stylesheet" href="../vendor/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="./page.css">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js"></script>
+</head>
+<body>
+  <main class="page-body" id="body">
+    <div class="section" style="margin-top:2px"><div class="section-title"><span class="bar"></span>全部分类</div></div>
+    <div id="catBlocks"></div>
+  </main>
+</body>
+<script>
+  function goTid(tid, label) { MpNavigateTo('./pages/catlist.html', label, { type: 'tid', value: String(tid), label: label }); }
+
+  function renderGroups() {
+    const groups = window.CATEGORY_GROUPS || [];
+    document.getElementById('catBlocks').innerHTML = groups.map(g => `
+      <div class="cat-block">
+        <div class="ct-title">${g.name}</div>
+        <div class="chip-row">
+          ${g.items.map(it => `<div class="chip" onclick="goTid(${it.tid},'${it.name}')">${it.name}</div>`).join('')}
+        </div>
+      </div>`).join('');
+  }
+
+  MpPageLifeCycle.init({
+    onLoad: () => { renderGroups(); },
+    onShow: () => {}, onHide: () => {}, onDestroy: () => {}
+  });
+</script>
+</html>

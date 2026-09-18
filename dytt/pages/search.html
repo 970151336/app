@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>搜索</title>
+  <link rel="stylesheet" href="../vendor/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="./page.css">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js"></script>
+  <script src="./store.js"></script>
+</head>
+<body>
+  <main class="page-body" id="body" style="padding-top:calc(52px + env(safe-area-inset-top,0px))">
+    <div class="search-box">
+      <input id="kw" type="search" placeholder="输入电影名 / 演员 / 导演" onkeydown="if(event.key==='Enter')doSearch()">
+      <div class="go" onclick="doSearch()">搜索</div>
+    </div>
+    <div id="panel"></div>
+    <div id="result" style="display:none"></div>
+  </main>
+</body>
+<script>
+  function openDetail(id) {
+    const d = getMovieById(id);
+    MpNavigateTo('./pages/detail.html', d ? d.title : '详情', { id: id });
+  }
+  const HOT = ['科幻', '喜剧', '爱情', '悬疑', '动作', '动画', '诺兰', '周星驰', '宫崎骏', '复仇者联盟'];
+  const HKEY = 'movie_search_hist';
+
+  function getHist() { try { return JSON.parse(localStorage.getItem(HKEY) || '[]'); } catch (e) { return []; } }
+  function saveHist(k) {
+    let h = getHist().filter(x => x !== k); h.unshift(k); if (h.length > 10) h = h.slice(0, 10);
+    try { localStorage.setItem(HKEY, JSON.stringify(h)); } catch (e) {}
+  }
+  function renderPanel() {
+    const h = getHist();
+    document.getElementById('panel').innerHTML = `
+      <div class="tag-group"><div class="tg-title">热门搜索</div>
+        <div class="tag-cloud">${HOT.map(t => `<div class="chip" onclick="fill('${t}')">${t}</div>`).join('')}</div></div>
+      ${h.length ? `<div class="tag-group"><div class="tg-title" style="display:flex;justify-content:space-between">搜索历史 <span style="color:var(--text-dim);font-size:12px;cursor:pointer" onclick="clearHist()">清空</span></div>
+        <div class="tag-cloud">${h.map(t => `<div class="chip" onclick="fill('${t}')">${t}</div>`).join('')}</div></div>` : ''}`;
+  }
+  function fill(t) { document.getElementById('kw').value = t; doSearch(); }
+  function clearHist() { try { localStorage.removeItem(HKEY); } catch (e) {} renderPanel(); }
+
+  function doSearch() {
+    const kw = (document.getElementById('kw').value || '').trim();
+    if (!kw) { document.getElementById('kw').focus(); return; }
+    saveHist(kw);
+    MpSetNavTitle('搜索：' + kw);
+    document.getElementById('panel').style.display = 'none';
+    const box = document.getElementById('result'); box.style.display = 'block';
+    box.innerHTML = `<div class="empty"><i class="fa fa-spinner fa-spin"></i>搜索中…</div>`;
+    // 本地结果（兜底库即时）
+    const local = window.movieSearch(kw);
+    paint(local, '本地');
+    // 在线结果（资源库可达时追加）
+    window.MovieAPI.fetchSearch(kw, 1).then(online => {
+      const merged = local.concat(online.filter(o => !local.some(l => String(l.id) === String(o.id))));
+      paint(merged, window.__MOVIES_LIVE ? '在线+本地' : '');
+    }).catch(() => {});
+  }
+  function paint(list, tag) {
+    const box = document.getElementById('result');
+    if (!list.length) { box.innerHTML = `<div class="empty"><i class="fa fa-film"></i>没有找到相关影片</div>`; return; }
+    box.innerHTML = `
+      <div class="section" style="margin-top:2px"><div class="section-title"><span class="bar"></span>搜索结果${tag ? ' · ' + tag : ''}</div>
+        <div class="section-more">${list.length} 部</div></div>
+      <div class="poster-grid3">${list.map(d => window.MpUI.posterHTML(d, { badge: d.remarks })).join('')}</div>
+      <div style="height:10px"></div>`;
+    window.MpUI.lazyScan(box);
+  }
+
+  MpPageLifeCycle.init({
+    onLoad: () => { renderPanel(); },
+    onShow: () => { document.getElementById('kw') && document.getElementById('kw').focus(); },
+    onHide: () => {}, onDestroy: () => {}
+  });
+</script>
+</html>

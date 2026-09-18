@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>播放</title>
+  <link rel="stylesheet" href="../vendor/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="./page.css">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js"></script>
+  <script src="./store.js"></script>
+  <style>
+    .player-page { padding-top: calc(44px + env(safe-area-inset-top,0px)); }
+    .player-meta { padding: 10px 14px 2px; }
+    .player-meta .pm-t { font-size: 16px; font-weight: 700; color: #fff; }
+    .player-meta .pm-s { font-size: 12px; color: var(--text-sub); margin-top: 3px; }
+    .src-head { display: flex; align-items: baseline; justify-content: space-between; padding: 14px 14px 8px; }
+    .src-head .t { font-size: 15px; font-weight: 700; color: #fff; }
+    .src-head .c { font-size: 12px; color: var(--text-sub); }
+  </style>
+</head>
+<body>
+  <main class="page-body player-page" id="body" style="padding-bottom:24px">
+    <div class="player-wrap">
+      <video id="pv" playsinline webkit-playsinline x5-playsinline controls preload="metadata"></video>
+      <div class="ghs-box" id="ghsBox"><iframe id="ghsIframe" allow="autoplay; encrypted-media; fullscreen" allowfullscreen scrolling="no"></iframe></div>
+    </div>
+    <div class="player-meta" id="pmeta"></div>
+    <div class="src-head"><span class="t">播放源</span><span class="c" id="srcCount"></span></div>
+    <div class="line-row" id="lineRow" style="padding-top:4px"></div>
+    <div class="player-toast" id="toast"></div>
+  </main>
+</body>
+<script>
+  let cur = null, srcIdx = 0, hls = null, _hlsLoading = null;
+
+  function ensureHls(cb) {
+    if (window.Hls) { cb(); return; }
+    if (_hlsLoading) { _hlsLoading.then(cb); return; }
+    _hlsLoading = new Promise((res) => {
+      const s = document.createElement('script');
+      s.src = '../vendor/hls/hls.min.js';
+      s.onload = () => res(); s.onerror = () => res();
+      document.head.appendChild(s);
+    });
+    _hlsLoading.then(cb);
+  }
+  function destroyHls() { if (hls) { try { hls.destroy(); } catch (e) {} hls = null; } }
+  function showVideo() {
+    const box = document.getElementById('ghsBox'); const ifr = document.getElementById('ghsIframe');
+    box.style.display = 'none'; ifr.removeAttribute('src'); document.getElementById('pv').style.display = 'block';
+  }
+  function showGhs(url) {
+    destroyHls(); document.getElementById('pv').style.display = 'none';
+    const box = document.getElementById('ghsBox'); box.style.display = 'block';
+    document.getElementById('ghsIframe').src = url;
+  }
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+  function markSrc(i) { document.querySelectorAll('#lineRow .line-chip').forEach((c, idx) => c.classList.toggle('active', idx === i)); }
+
+  function loadIntoVideo(url, i) {
+    const video = document.getElementById('pv'); destroyHls();
+    const ua = navigator.userAgent;
+    const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isSafari = /^((?!chrome|android|crios|fxios|edg).)*safari/i.test(ua);
+    if ((isIOS || isSafari) && video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = url; video.play().catch(() => {}); return;
+    }
+    ensureHls(() => {
+      if (window.Hls && window.Hls.isSupported()) {
+        hls = new window.Hls();
+        hls.loadSource(url); hls.attachMedia(video);
+        hls.on(window.Hls.Events.ERROR, (e, data) => {
+          if (!data || !data.fatal) return;
+          // 自动降级到下一个可用源
+          if (srcIdx < cur.sources.length - 1) { toast('当前源失败，切换下一源'); setTimeout(() => playSrc(srcIdx + 1), 300); }
+          else toast('所有播放源暂不可用');
+        });
+        video.play().catch(() => {});
+      } else { toast('当前浏览器不支持 HLS，请换 Safari 或 Chrome'); }
+    });
+  }
+
+  function playSrc(i) {
+    if (!cur || !cur.sources || !cur.sources.length) return;
+    if (i < 0 || i >= cur.sources.length) return;
+    srcIdx = i;
+    const s = cur.sources[i];
+    MpSetNavTitle(cur.title + ' · ' + s.name);
+    markSrc(i);
+    if (/\.(m3u8)($|\?)/i.test(s.url) === false && /youtube|player|embed|http/i.test(s.url) && !/\.(mp4|webm|mkv|mov)($|\?)/i.test(s.url)) {
+      showGhs(s.url); return;
+    }
+    showVideo(); loadIntoVideo(s.url, i);
+  }
+  function setSrc(i) { if (i === srcIdx) return; playSrc(i); }
+
+  MpPageLifeCycle.init({
+    onLoad: (data) => {
+      (async () => {
+        let d = getMovieById(data.id);
+        if (!d || !d.sources || !d.sources.length) d = await window.MovieAPI.fetchDetail(data.id); // 未并入全局/无源时现场拉取
+        if (!d) { document.getElementById('body').innerHTML = '<div class="empty">未找到该影片</div>'; return; }
+        cur = d;
+        document.getElementById('pmeta').innerHTML = `<div class="pm-t">${d.title}</div><div class="pm-s">${[d.year, d.area, d.genre].filter(Boolean).join(' · ')}</div>`;
+        const sources = d.sources || [];
+        document.getElementById('srcCount').textContent = '共 ' + sources.length + ' 条';
+        if (!sources.length) {
+          document.getElementById('lineRow').innerHTML = '<div class="empty" style="padding:20px">暂无可用播放源</div>';
+          return;
+        }
+        document.getElementById('lineRow').innerHTML = sources.map((s, i) =>
+          `<div class="line-chip" onclick="setSrc(${i})">${s.name}</div>`).join('');
+        const start = Math.max(0, sources.findIndex(x => x.name === (data.line || 'hls')));
+        playSrc(start >= 0 ? start : 0);
+        window.AppStore.addHistory(d);
+      })();
+    },
+    onShow: () => {}, onHide: () => { destroyHls(); }, onDestroy: () => { destroyHls(); }
+  });
+</script>
+</html>

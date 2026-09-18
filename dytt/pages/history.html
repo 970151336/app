@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>历史</title>
+  <link rel="stylesheet" href="../vendor/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="./page.css">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js"></script>
+  <script src="./store.js"></script>
+</head>
+<body>
+  <main class="page-body" id="body"><div class="empty">加载中…</div></main>
+</body>
+<script>
+  function openDetail(id) {
+    const d = getMovieById(id);
+    MpNavigateTo('./pages/detail.html', d ? d.title : '详情', { id: id });
+  }
+  let _unsub = null;
+
+  function render() {
+    const arr = window.AppStore.getHistory();
+    if (!arr.length) {
+      document.getElementById('body').innerHTML = `<div class="empty"><i class="fa fa-history"></i>还没有观看记录<br>
+        <span class="ebtn" onclick="goHome()">去首页看片</span></div>`;
+      return;
+    }
+    document.getElementById('body').innerHTML = `
+      <div class="section" style="margin-top:2px"><div class="section-title"><span class="bar"></span>观看历史</div>
+        <div class="section-more" onclick="clearAll()">清空</div></div>
+      <div class="poster-grid3">${arr.map(d => window.MpUI.posterHTML(d, { badge: fmtTs(d.ts) })).join('')}</div>
+      <div style="height:10px"></div>`;
+    window.MpUI.lazyScan();
+  }
+  function fmtTs(ts) {
+    if (!ts) return '';
+    const d = new Date(ts); const p = n => (n < 10 ? '0' + n : n);
+    return `${d.getMonth() + 1}月${d.getDate()}日 ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function clearAll() { if (!confirm('确定清空观看历史？')) return; window.AppStore.clearHistory(); render(); }
+  function goHome() { MpNavigateTo('./pages/home.html', '电影天堂', {}); }
+
+  MpPageLifeCycle.init({
+    onLoad: () => { _unsub = window.AppStore.subscribe(() => render()); render(); },
+    onShow: () => { render(); }, onHide: () => {}, onDestroy: () => { if (_unsub) _unsub(); }
+  });
+</script>
+</html>

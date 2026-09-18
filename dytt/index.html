@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="电影天堂">
+    <meta name="theme-color" content="#0c0c10">
+        <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css"> -->
+          <link rel="stylesheet" href="./vendor/font-awesome/css/font-awesome.min.css">
+    <link rel="apple-touch-icon" href="https://img2.baidu.com/it/u=2581673229,3779674022&fm=253&fmt=auto&app=138&f=PNG?w=500&h=500">
+    <title>电影天堂</title>
+    <style type="text/css">
+        :root {
+            --safe-area-inset-top: env(safe-area-inset-top);
+            --safe-area-inset-bottom: env(safe-area-inset-bottom);
+            --safe-area-inset-left: env(safe-area-inset-left);
+            --safe-area-inset-right: env(safe-area-inset-right);
+            --primary: #ff4d4f;
+            --gold: #ffd24a;
+            --text-sub: #9a9aa3;
+            --nav-bg: rgba(12, 12, 16, 0.9);
+            --border: rgba(255, 255, 255, 0.08);
+            --bg: #0c0c10;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; max-width: 100%; }
+        body {
+            min-height: 100vh; padding: 0; overflow: hidden;
+            touch-action: pan-y; -webkit-overflow-scrolling: touch;
+            height: 100vh; width: 100vw; background: var(--bg);
+        }
+        .content { width: 100%; height: 100vh; position: relative; overflow: hidden; }
+        .content iframe {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            border: none; overflow: hidden; z-index: 1; -webkit-overflow-scrolling: touch;
+        }
+        .page-iframe { display: none; }
+        .page-iframe.active { display: block; }
+        .loading-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(12, 12, 16, 0.5); display: flex;
+            justify-content: center; align-items: center; z-index: 50;
+        }
+        .loader {
+            width: 46px; height: 46px; border: 4px solid rgba(255,255,255,0.14);
+            border-bottom-color: var(--primary); border-radius: 50%;
+            animation: rotation 1s linear infinite;
+        }
+        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .footer {
+            position: fixed; left: 0; right: 0; bottom: 0;
+            padding-bottom: constant(safe-area-inset-bottom);
+            padding-bottom: env(safe-area-inset-bottom);
+            height: calc(54px + constant(safe-area-inset-bottom));
+            height: calc(54px + env(safe-area-inset-bottom));
+            background-color: var(--nav-bg);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border-top: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 -1px 12px rgba(0,0,0,0.4); z-index: 99; overflow: hidden;
+        }
+        .tabs-container { display: flex; height: 54px; overflow: hidden; }
+        .tab-item {
+            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-size: 10px; color: var(--text-sub); cursor: pointer; padding-top: 5px;
+            outline: none; -webkit-tap-highlight-color: transparent; position: relative;
+        }
+        .tab-icon { font-size: 20px; margin-bottom: 2px; transition: transform .2s; }
+        .tab-item.active { color: var(--primary); }
+        .tab-item.active .tab-icon { transform: translateY(-1px) scale(1.06); }
+        .tab-item .dot {
+            position: absolute; top: 6px; right: 50%; margin-right: -22px;
+            min-width: 16px; height: 16px; padding: 0 4px; border-radius: 9px;
+            background: var(--primary); color: #fff; font-size: 10px; line-height: 16px;
+            text-align: center; display: none;
+        }
+        .tab-item .dot.show { display: block; }
+    </style>
+</head>
+<body>
+<div class="content" id="iframeContainer">
+    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+        <div class="loader"></div>
+    </div>
+</div>
+<div class="footer" id="tabbar">
+    <div class="tabs-container" id="tabsContainer"></div>
+</div>
+<!-- 导航控制器代码生成器（运行时用 srcdoc 动态生成并塞进 iframe） -->
+<script src="./src/navTemplate.js"></script>
+<script>
+    // ========== tab 配置（菜单 + 导航控制器个性化参数） ==========
+    const tabList = [
+        { key: 'home',     icon: 'fa-home',      label: '首页',   rootTitle: '电影天堂', rootPath: './pages/home.html' },
+        { key: 'category', icon: 'fa-th-large',  label: '分类',   rootTitle: '分类',   rootPath: './pages/category.html' },
+        { key: 'rank',     icon: 'fa-trophy',    label: '排行榜', rootTitle: '排行榜', rootPath: './pages/rank.html' },
+        { key: 'mine',     icon: 'fa-user',      label: '我的',   rootTitle: '我的',   rootPath: './pages/mine.html' }
+    ];
+
+    // 导航控制器共享主题（影院暗色：红 + 金）
+    const NAV_THEME = {
+        primary:   '#ff4d4f',
+        navBg:     'rgba(12, 12, 16, 0.9)',
+        border:    'rgba(255, 255, 255, 0.08)',
+        titleColor:'#ffffff',
+        pageBg:    '#0c0c10',
+        font:      '-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif'
+    };
+    const APP_TITLE = '电影天堂';
+
+    // app 根目录（用于 srcdoc 内相对路径解析：./src/... 与 ./pages/...）
+    const APP_BASE = new URL('./', location.href).href;
+
+    const tabsContainer = document.getElementById('tabsContainer');
+    function renderTabs() {
+        tabsContainer.innerHTML = '';
+        tabList.forEach((tab) => {
+            const div = document.createElement('div');
+            div.className = 'tab-item';
+            div.dataset.key = tab.key;
+            div.innerHTML = `<i class="tab-icon fa ${tab.icon}"></i><span>${tab.label}</span><span class="dot" id="dot-${tab.key}"></span>`;
+            tabsContainer.appendChild(div);
+        });
+    }
+
+    const iframeContainer = document.getElementById('iframeContainer');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    let tabItems = [];
+    const pageCache = {};
+    const scrollPositions = {};
+    let currentPageName = null;
+    let domCheckTimer = null;
+
+    function initTabs() {
+        renderTabs();
+        tabItems = document.querySelectorAll('.tab-item');
+        tabItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const key = item.dataset.key;
+                if (key === currentPageName) return;
+                saveScrollPosition(currentPageName);
+                history.pushState({ tab: key }, '', '#' + key);
+                loadPage(key);
+                updateNavStatus(key);
+            });
+        });
+    }
+
+    setTimeout(() => {
+        initTabs();
+        const initKey = (location.hash || '').replace(/^#/, '');
+        const valid = tabList.find(t => t.key === initKey);
+        if (valid) {
+            currentPageName = valid.key;
+            loadPage(valid.key);
+        } else {
+            currentPageName = tabList[0].key;
+            history.replaceState({ tab: tabList[0].key }, '', '#' + tabList[0].key);
+            loadPage(tabList[0].key);
+        }
+        updateNavStatus(currentPageName);
+        window.addEventListener('popstate', () => {
+            const k = (location.hash || '').replace(/^#/, '');
+            const t = tabList.find(x => x.key === k);
+            if (t && t.key !== currentPageName) loadPage(t.key);
+        });
+        // 跨页收藏/历史变化时，刷新“我的”角标
+        try { window.addEventListener('appstore', refreshBadges); } catch (e) {}
+        refreshBadges();
+    }, 1);
+
+    function checkPageHasContent(iframe) {
+        try {
+            if (!iframe.contentWindow || !iframe.contentDocument) return false;
+            const d = iframe.contentDocument || iframe.contentWindow.document;
+            const b = d.body; if (!b) return false;
+            const cs = getComputedStyle(b);
+            const bg = cs.backgroundColor;
+            const hasBg = bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent';
+            return hasBg || b.children.length > 0 || b.offsetHeight > 0 || (b.textContent && b.textContent.trim().length > 0);
+        } catch (e) { return false; }
+    }
+    function hideLoadingAnimation() {
+        if (domCheckTimer) { clearInterval(domCheckTimer); domCheckTimer = null; }
+        loadingOverlay.style.display = 'none';
+    }
+    function monitorPageContent(iframe) {
+        if (domCheckTimer) clearInterval(domCheckTimer);
+        domCheckTimer = setInterval(() => { if (checkPageHasContent(iframe)) hideLoadingAnimation(); }, 50);
+    }
+
+    // 核心：导航控制器代码由 JS 动态生成，经 srcdoc 直接塞进 iframe
+    function loadPage(key) {
+        loadingOverlay.style.display = 'flex';
+        if (pageCache[key]) {
+            if (currentPageName) {
+                pageCache[currentPageName].classList.remove('active');
+                if (pageCache[currentPageName].contentWindow.viewDidDisappear)
+                    pageCache[currentPageName].contentWindow.viewDidDisappear({ pageName: currentPageName, to: key });
+            }
+            pageCache[key].classList.add('active');
+            restoreScrollPosition(key);
+            const iframe = pageCache[key];
+            if (iframe.contentWindow.viewDidAppear)
+                iframe.contentWindow.viewDidAppear({ pageName: key, frome: currentPageName });
+            monitorPageContent(iframe);
+            currentPageName = key;
+            return;
+        }
+        const tabCfg = tabList.find(t => t.key === key);
+        const iframe = document.createElement('iframe');
+        iframe.className = 'page-iframe';
+        iframe.dataset.key = key;
+        iframe.src = 'about:blank';
+        iframe.getBoundingClientRect();
+        setTimeout(() => {
+            iframe.srcdoc = NavFactory.buildNavController({
+                tabKey: tabCfg.key,
+                rootTitle: tabCfg.rootTitle,
+                rootPath: tabCfg.rootPath,
+                theme: NAV_THEME,
+                base: APP_BASE,
+                docTitle: APP_TITLE
+            });
+            monitorPageContent(iframe);
+            iframe.onload = function () { return; };
+            iframe.onerror = () => hideLoadingAnimation();
+        }, 10);
+        iframeContainer.appendChild(iframe);
+        pageCache[key] = iframe;
+        if (currentPageName && pageCache[currentPageName]) {
+            pageCache[currentPageName].classList.remove('active');
+            if (pageCache[currentPageName].contentWindow.viewDidDisappear)
+                pageCache[currentPageName].contentWindow.viewDidDisappear({ pageName: currentPageName, to: key });
+        }
+        iframe.classList.add('active');
+        currentPageName = key;
+    }
+    function saveScrollPosition(pageName) {
+        if (!pageName || !pageCache[pageName]) return;
+        const iframe = pageCache[pageName];
+        if (iframe.contentWindow) scrollPositions[pageName] = iframe.contentWindow.scrollY;
+    }
+    function restoreScrollPosition(pageName) {
+        if (!pageName || !pageCache[pageName] || scrollPositions[pageName] === undefined) return;
+        const iframe = pageCache[pageName];
+        setTimeout(() => { if (iframe.contentWindow) iframe.contentWindow.scrollTo(0, scrollPositions[pageName]); }, 0);
+    }
+    function updateNavStatus(activePage) {
+        tabItems.forEach(item => {
+            item.classList.toggle('active', item.dataset.key === activePage);
+        });
+    }
+    // 角标：我的 tab 显示收藏数（事件总线 appstore 派发在 window.top，故直接读 localStorage）
+    function refreshBadges() {
+        try {
+            const raw = localStorage.getItem('movie_favs');
+            const n = raw ? (JSON.parse(raw).length || 0) : 0;
+            const dot = document.getElementById('dot-mine');
+            if (dot) { dot.textContent = n > 99 ? '99+' : n; dot.classList.toggle('show', n > 0); }
+        } catch (e) {}
+    }
+        function  setTabBarHidden(hidden) {
+        // console.log('setTabBarHidden:'+hidden);
+        const tabBar = document.getElementById('tabbar');
+        tabBar.style.zIndex = hidden ? -99 : 99;
+    }
+    function receiveNativeMessage(body) {
+        if (pageCache[currentPageName].contentWindow.receiveNativeMessage) {
+            pageCache[currentPageName].contentWindow.receiveNativeMessage(body);
+        }
+    }
+</script>
+</body>
+</html>

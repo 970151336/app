@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>收藏</title>
+  <link rel="stylesheet" href="../vendor/font-awesome/css/font-awesome.min.css">
+  <link rel="stylesheet" href="./page.css">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js"></script>
+  <script src="./store.js"></script>
+</head>
+<body>
+  <main class="page-body" id="body"><div class="empty">加载中…</div></main>
+</body>
+<script>
+  function openDetail(id) {
+    const d = getMovieById(id);
+    MpNavigateTo('./pages/detail.html', d ? d.title : '详情', { id: id });
+  }
+  let _type = 'fav', _unsub = null;
+
+  function list() { return _type === 'wish' ? window.AppStore.getWishes() : window.AppStore.getFavs(); }
+  function title() { return _type === 'wish' ? '想看清单' : '我的收藏'; }
+
+  function render() {
+    const arr = list();
+    if (!arr.length) {
+      document.getElementById('body').innerHTML = `<div class="empty"><i class="fa fa-${_type === 'wish' ? 'bookmark' : 'heart'}"></i>
+        ${_type === 'wish' ? '还没有想看的影片' : '还没有收藏影片'}<br>
+        <span class="ebtn" onclick="goHome()">去首页逛逛</span></div>`;
+      return;
+    }
+    document.getElementById('body').innerHTML = `
+      <div class="section" style="margin-top:2px"><div class="section-title"><span class="bar"></span>${title()}</div>
+        <div class="section-more">${arr.length} 部</div></div>
+      <div class="poster-grid3">${arr.map(d => window.MpUI.posterHTML(d)).join('')}</div>
+      <div style="height:10px"></div>`;
+    window.MpUI.lazyScan();
+  }
+  function goHome() { MpNavigateTo('./pages/home.html', '电影天堂', {}); }
+
+  MpPageLifeCycle.init({
+    onLoad: (data) => { _type = data.type || 'fav'; MpSetNavTitle(title()); _unsub = window.AppStore.subscribe(() => render()); render(); },
+    onShow: () => { render(); },
+    onHide: () => {}, onDestroy: () => { if (_unsub) _unsub(); }
+  });
+</script>
+</html>
