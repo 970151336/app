@@ -14,12 +14,10 @@ window.TVAPI = (function () {
   // 数据现仅通过 GitHub Pages 发布，故首选 iptv-org.github.io/api/（README 标注的 live 端点），
   // raw.githubusercontent.com/.../master/ 作为后备（部分历史环境仍可访问）。
   const API_HOSTS = [
-    'https://cdn.jsdelivr.net/gh/iptv-org/api/',
     'https://iptv-org.github.io/api/',
     'https://raw.githubusercontent.com/iptv-org/api/master/'
   ];
   const M3U_HOSTS = [
-    'https://cdn.jsdelivr.net/gh/iptv-org/api/',
     'https://iptv-org.github.io/iptv/channels/',
     'https://raw.githubusercontent.com/iptv-org/iptv/master/channels/'
   ];
