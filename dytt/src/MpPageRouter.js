@@ -50,9 +50,6 @@ class MpPageRouter {
             this.config.loading = { ...this.config.loading, ...options.loading };
         }
 
-        // 新增：所属 tab 标识，用于把页面栈持久化到 sessionStorage（刷新恢复）
-        this.tabKey = options.tabKey || 'home';
-
         this.loadingEl = null;
         // 新增：加载动画检测定时器
         this.loadingCheckTimer = null;
@@ -649,6 +646,18 @@ class MpPageRouter {
             return false;
         }
     }
+    setTabbarSelectIndex(index) {
+        try {
+            if (!window.parent) return false;
+            if (typeof window.parent.setTabbarSelectIndex !== 'function') return false;
+            this.goHome();
+            window.parent.setTabbarSelectIndex(index);
+            return true;
+        } catch (error) {
+            console.error('setTabbarSelectIndex', error.message);
+            return false;
+        }
+    }
 
     setPageBgColor(iframeElement) {
         function setIFrameColor(iframe) {
@@ -778,43 +787,13 @@ class MpPageRouter {
         window.pageSetNavBarHidden = (hidden) => this.setNavBarHidden(hidden);
         window.pageSetNavRightBar = (html) => this.setPageRightBar(html);
         window.pageSetNavLeftBar = (html) => this.setPageLeftBar(html);
+        window.pageSetTabbarSelectIndex = (index) => this.setTabbarSelectIndex(index);
 
         window.currentWindow = () => this.currentWindow();
     }
 
     init() {
-        // 刷新恢复：先快照要重放的栈（navigateTo 会覆盖 session，故提前读）
-        let restoreArr = null;
-        try {
-            const r = sessionStorage.getItem('router:' + this.tabKey);
-            if (r) { const a = JSON.parse(r); if (Array.isArray(a) && a.length > 1) restoreArr = a; }
-        } catch (e) {}
         this.navigateTo(this.config.rootPath, this.config.rootTitle, {}, true);
-        if (restoreArr) this._replay(restoreArr);
-    }
-
-    // 刷新后按 sessionStorage 记录的栈重放子页面（带 push 动画）
-    _replay(arr) {
-        let i = 1;
-        const step = () => {
-            if (i >= arr.length) { this._persist(); return; }
-            const p = arr[i++];
-            this.navigateTo(p.path, p.title, p.data || {}, false);
-            const wait = () => {
-                if (this.isNavigating || this._animating) { setTimeout(wait, 60); }
-                else { setTimeout(step, 90); }
-            };
-            setTimeout(wait, 110);
-        };
-        setTimeout(step, 350);
-    }
-
-    // 把当前页面栈写入 sessionStorage（同源下子 iframe 共享父页 sessionStorage）
-    _persist() {
-        try {
-            const arr = this.pageStack.map((p) => ({ path: p.path, title: p.title, data: p.data || {} }));
-            sessionStorage.setItem('router:' + this.tabKey, JSON.stringify(arr));
-        } catch (e) {}
     }
 
     bindEvents() {
@@ -887,7 +866,6 @@ class MpPageRouter {
         const pageInfo = { path, iframe, title, data, wrap };
         this.pageStack.push(pageInfo);
         this.currentPage = pageInfo;
-        this._persist();   // 持久化页面栈，供刷新恢复
 
         // 5. 更新导航栏（立即执行）
         if (isInitial) {
@@ -968,7 +946,6 @@ class MpPageRouter {
         }
 
         this.currentPage = prev;
-        this._persist();   // 持久化页面栈，供刷新恢复
         this._titleCrossfadeTo(prev.title);
         this._buttonsCrossfadeTo(prev);       // 返回时当前按钮淡出，落定后换成上一页按钮
         this.setBackBtnVisible(this.pageStack.length > 1);
@@ -1023,7 +1000,6 @@ class MpPageRouter {
 
         this.pageStack = [home];
         this.currentPage = home;
-        this._persist();   // 持久化页面栈，供刷新恢复
         this._titleCrossfadeTo(home.title);
         this._buttonsCrossfadeTo(home);        // 回根时当前按钮淡出，落定后换成首页按钮
         this.setBackBtnVisible(false);
@@ -1166,10 +1142,7 @@ class MpPageRouter {
     sendPageMessage(iframe, message) {
         if (!iframe || !iframe.contentWindow || iframe.dataset.loaded !== 'true') return;
         try {
-            // 注意：导航控制器可能是 srcdoc 注入的 iframe（其 location.origin 为 "null"），
-            // 若按 window.location.origin 作为 targetOrigin 会导致子页面收不到生命周期消息。
-            // 子页面 MpPageLifeCycle 默认 relaxOriginCheck=true 不校验来源，故统一发 '*'。
-            iframe.contentWindow.postMessage(message, '*');
+            iframe.contentWindow.postMessage(message, "*");
         } catch (e) {
             console.warn(`生命周期消息发送失败：${e.message}`, message);
         }
@@ -1253,6 +1226,8 @@ window.MpPageRouter = MpPageRouter;
         window.MpNavigateTo = window.parent.pageNavigateTo || (() => console.warn('⚠️ MpNavigateTo 方法未挂载'));
         window.MpBack = window.parent.pageGoBack || (() => console.warn('⚠️ MpBack 方法未挂载'));
         window.MpGoHome = window.parent.pageGoHome || (() => console.warn('⚠️ MpGoHome 方法未挂载'));
+        window.MpSetTabbarSelectIndex = window.parent.pageSetTabbarSelectIndex || (() => console.warn('⚠️ MpSetTabbarSelectIndex 方法未挂载'));
+
     }
     window.MpPageLifeCycle = { init };
 })(window);
