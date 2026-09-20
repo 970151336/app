@@ -38,7 +38,9 @@
       <div style="height:10px"></div>`;
     window.MpUI.lazyScan();
   }
-  function goHome() { MpNavigateTo('./pages/home.html', '电影天堂', {}); }
+  function goHome() { 
+     MpSetTabbarSelectIndex(0);
+  }
 
   MpPageLifeCycle.init({
     onLoad: (data) => { _type = data.type || 'fav'; MpSetNavTitle(title()); _unsub = window.AppStore.subscribe(() => render()); render(); },
