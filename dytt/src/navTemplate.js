@@ -2,7 +2,7 @@
  * navTemplate.js — 导航控制器（Nav Controller）代码生成器
  * ------------------------------------------------------------------
  * 这 4 个文件（homeNav / categoryNav / rankNav / mineNav）90% 的代码完全一样，
- * 差异只有：根页面路径(rootPath)、导航标题(rootTitle)、tabKey、以及默认标题文字。
+ * 差异只有：根页面路径(rootPath)、导航标题(rootTitle)、以及默认标题文字。
  * 这里把「公共的 HTML / CSS / 脚本」抽成模板，把「个性化的东西」通过 cfg 传进去，
  * 用 buildNavController(cfg) 一份函数生成这 4 个文件的代码。
  *
@@ -11,7 +11,8 @@
  *   2) Node 里  ：const { buildNavController } = require('./src/navTemplate.js')
  *
  * cfg 字段：
- *   tabKey    : 'home' | 'category' | 'rank' | 'mine'   （用于路由栈持久化的 key，必填）
+ docTitle: 'appName'
+ bsae:  app 根目录（用于 srcdoc 内相对路径解析：./src/... 与 ./pages/...）
  *   rootTitle : '首页'                                      （导航栏默认标题，必填）
  *   rootPath  : './pages/home.html'                         （业务根页面路径，必填）
  *   theme     : {                                           （个性化主题，可选，有默认值）
@@ -28,8 +29,8 @@
 
   // 公共 HTML 骨架：除个性化字段外，与原本 4 个 nav 文件完全一致
   function buildNavController(cfg) {
-    if (!cfg || !cfg.tabKey || !cfg.rootPath || !cfg.rootTitle) {
-      throw new Error('buildNavController(cfg) 需要 tabKey / rootPath / rootTitle');
+    if (!cfg || !cfg.rootPath) {
+      throw new Error('buildNavController(cfg) 需要 rootPath ');
     }
 
     const theme = Object.assign({
@@ -41,9 +42,8 @@
       font: '-apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif'
     }, cfg.theme || {});
 
-    const docTitle = cfg.docTitle || '追剧大全';
+    const docTitle = cfg.docTitle || '';
     const base = cfg.base || '';
-    const tabKey = JSON.stringify(cfg.tabKey);
     const rootTitle = JSON.stringify(cfg.rootTitle);
     const rootPath = JSON.stringify(cfg.rootPath);
 
@@ -242,7 +242,6 @@
             rightBarId: 'rightBar',
             rootPath: ${rootPath},
             rootTitle: ${rootTitle},
-            tabKey: ${tabKey},
             navBar: {
                 visible: true,
                 backgroundColor: 'var(--nav-bg)',
