@@ -676,7 +676,8 @@ class MpPageRouter {
                 bgColor = bodyStyle.backgroundColor;
             }
             if (isTransparent(bgColor)) {
-                bgColor = '#ffffff';
+                //bgColor = '#ffffff';
+                return;
             }
 
             iframe.style.backgroundColor = bgColor;
