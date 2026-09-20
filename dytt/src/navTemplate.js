@@ -11,8 +11,8 @@
  *   2) Node 里  ：const { buildNavController } = require('./src/navTemplate.js')
  *
  * cfg 字段：
- docTitle: 'appName'
- bsae:  app 根目录（用于 srcdoc 内相对路径解析：./src/... 与 ./pages/...）
+ *   docTitle: 'appName'
+ *   bsae:  app 根目录（用于 srcdoc 内相对路径解析：./src/... 与 ./pages/...）
  *   rootTitle : '首页'                                      （导航栏默认标题，必填）
  *   rootPath  : './pages/home.html'                         （业务根页面路径，必填）
  *   theme     : {                                           （个性化主题，可选，有默认值）
@@ -172,6 +172,9 @@
             width: 100vw;
             height: 100vh;
             overflow: hidden;
+        }
+        .page-wrap {
+            background: ${theme.navBg};
         }
         .page-iframe {
             position: absolute;
