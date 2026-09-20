@@ -40,7 +40,10 @@
     return `${d.getMonth() + 1}月${d.getDate()}日 ${p(d.getHours())}:${p(d.getMinutes())}`;
   }
   function clearAll() { if (!confirm('确定清空观看历史？')) return; window.AppStore.clearHistory(); render(); }
-  function goHome() { MpNavigateTo('./pages/home.html', '电影天堂', {}); }
+  function goHome() { 
+    MpSetTabbarSelectIndex(0);
+    // MpNavigateTo('./pages/home.html', '电影天堂', {}); 
+  }
 
   MpPageLifeCycle.init({
     onLoad: () => { _unsub = window.AppStore.subscribe(() => render()); render(); },
