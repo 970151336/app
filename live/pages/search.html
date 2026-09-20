@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>搜索</title>
+  <link rel="stylesheet" href="./page.css">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js"></script>
+  <script src="./api.js"></script>
+  <script src="./store.js"></script>
+</head>
+<body>
+  <main class="page-body" id="body">
+    <div class="search-box">
+      <input id="q" type="search" placeholder="搜索频道 / 国家 / 语言" onkeydown="if(event.key==='Enter')doSearch()">
+      <div class="go" onclick="doSearch()">搜索</div>
+    </div>
+    <div id="offbar"></div>
+    <div id="panel"></div>
+    <div id="loading" style="display:none"><div class="progress"><div class="p-track"><div class="p-fill" style="width:20%"></div></div></div><div class="empty" style="padding:24px 0">实时搜索中…</div></div>
+    <div style="height:10px"></div>
+  </main>
+</body>
+<script>
+  const esc = window.MpUI.esc;
+  function openChannel(id) { MpNavigateTo('./pages/channel.html', '频道', { c: id }); }
+  function goChannelList(type, value, label) { MpNavigateTo('./pages/channels.html', label, { type: type, value: value, label: label }); }
+  async function doSearch() {
+    const q = document.getElementById('q').value.trim();
+    const panel = document.getElementById('panel');
+    const loading = document.getElementById('loading');
+    if (!q) { renderPanel(); return; }
+    loading.style.display = 'block'; panel.innerHTML = '';
+    try {
+      const list = await window.TVAPI.searchChannels(q);
+      loading.style.display = 'none';
+      if (!list.length) {
+        panel.innerHTML = `<div class="empty"><i>🔍</i><div>没有找到 “${esc(q)}” 相关频道</div><div style="font-size:12px;color:var(--text-sub);margin-top:6px">试试国家名或语言，如 “新闻 / France”</div></div>`;
+        return;
+      }
+      panel.innerHTML = `<div class="section" style="margin-top:6px"><div class="section-title"><span class="bar"></span>搜索结果</div>
+        <div class="section-more">${list.length} 个</div></div>
+        <div class="ch-grid">${list.slice(0, 120).map(d => window.MpUI.channelCard(d)).join('')}</div>`;
+      window.MpUI.lazyScan();
+    } catch (e) {
+      loading.style.display = 'none';
+      panel.innerHTML = `<div class="empty"><i>📡</i><div>搜索失败</div><div style="font-size:12px;color:var(--text-sub);margin-top:6px">${esc(String(e && e.message || e))}</div></div>`;
+    }
+  }
+  async function renderPanel() {
+    if (window.TVAPI.isOffline()) document.getElementById('offbar').innerHTML = '<div class="offline-bar">⚠️ 实时接口暂不可用，搜索基于本地缓存</div>';
+    let pc = [], langs = [];
+    try { pc = await window.TVAPI.popularCountries(8); } catch (e) {}
+    try { langs = (await window.TVAPI.allLanguages()).slice(0, 10); } catch (e) {}
+    document.getElementById('panel').innerHTML = `
+      ${pc.length ? `<div class="tag-group"><div class="tg-title">热门国家</div>
+        <div class="tag-cloud chip-row">${pc.map(p => `<div class="chip" onclick="quick('${esc(p.name)}')">${p.flag} ${esc(p.name)}</div>`).join('')}</div></div>` : ''}
+      ${langs.length ? `<div class="tag-group"><div class="tg-title">按语言</div>
+        <div class="tag-cloud chip-row">${langs.map(l => `<div class="chip" onclick="quick('${esc(l.name)}')">${esc(l.name)}</div>`).join('')}</div></div>` : ''}
+      <div class="tag-group"><div class="tg-title">常用分类</div>
+        <div class="tag-cloud chip-row">
+          <div class="chip" onclick="quickCategory('news','新闻')">📰 新闻</div>
+          <div class="chip" onclick="quickCategory('sports','体育')">⚽ 体育</div>
+          <div class="chip" onclick="quickCategory('movies','电影')">🎬 电影</div>
+        </div></div>`;
+  }
+  function quick(q) { document.getElementById('q').value = q; doSearch(); }
+  function quickCategory(id, name) { goChannelList('category', id, name); }
+  MpPageLifeCycle.init({
+    onLoad: () => { renderPanel(); setTimeout(() => { const i = document.getElementById('q'); if (i) i.focus(); }, 300); },
+    onShow: () => {}, onHide: () => {}, onDestroy: () => {}
+  });
+</script>
+</html>

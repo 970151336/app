@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>频道</title>
+  <link rel="stylesheet" href="./page.css">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js"></script>
+  <script src="./api.js"></script>
+  <script src="./store.js"></script>
+</head>
+<body>
+  <main class="page-body" id="body"><div class="empty">加载中…</div></main>
+</body>
+<script>
+  const esc = window.MpUI.esc;
+  let cur = null;
+  function play() { MpNavigateTo('./pages/player.html', cur.name, { c: cur.id, name: cur.name }); }
+  function fav() { window.AppStore.toggleFav(cur); syncBtns(); }
+  function openChannel(id) { MpNavigateTo('./pages/channel.html', '频道', { c: id }); }
+
+  function syncBtns() {
+    const fb = document.querySelector('.btn-fav');
+    if (fb) { const f = window.AppStore.isFav(cur.id); fb.classList.toggle('is-fav', f); fb.innerHTML = f ? '❤️ 已收藏' : '🤍 收藏'; }
+  }
+  function coverHTML(d) {
+    if (d.logo) return `<img class="cover-img" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;padding:8px" src="${esc(d.logo)}" referrerpolicy="no-referrer" alt="${esc(d.name)}" onerror="this.style.display='none'">`;
+    return `<div class="cover-fill" style="background:${window.MpUI.gradFor(d)};font-size:34px">${esc((d.name || '?').trim().charAt(0).toUpperCase())}</div>`;
+  }
+  function metaRow(k, v) { return v ? `<div class="meta-row"><div class="m-k">${esc(k)}</div><div class="m-v">${v}</div></div>` : ''; }
+
+  async function render(id) {
+    let d;
+    try { d = await window.TVAPI.getChannel(id); } catch (e) {}
+    if (!d) { document.getElementById('body').innerHTML = '<div class="empty"><i>📡</i>未找到该频道（实时接口可能暂不可用）</div>'; return; }
+    cur = d;
+    const r = d.raw || {};
+    const flag = window.TVAPI.flagEmoji(d.code);
+    const cats = (r.categories || []).join('、');
+    const owners = (r.owners || []).join('、');
+    const tags = [d.countryName ? (flag + ' ' + d.countryName) : '', d.langCN, cats].filter(Boolean);
+    const web = d.website ? `<a href="${esc(d.website)}" target="_blank" rel="noopener">${esc(d.website)}</a>` : '';
+    let recHTML = '';
+    try {
+      const rec = (await window.TVAPI.channelsByCountry(d.code)).filter(x => x.id !== d.id).slice(0, 6);
+      if (rec.length) recHTML = `<div class="section" style="margin-top:18px"><div class="section-title"><span class="bar"></span>${flag} ${esc(d.countryName)} 更多频道</div></div>
+        <div class="ch-grid">${rec.map(x => window.MpUI.channelCard(x)).join('')}</div>`;
+    } catch (e) {}
+
+    document.getElementById('body').innerHTML = `
+      <div class="detail-hero">
+        <div class="cover" style="position:relative;overflow:hidden">${coverHTML(d)}</div>
+        <div class="detail-info">
+          <div class="d-title">${esc(d.name)}</div>
+          <div class="d-line">${tags.slice(0, 2).join(' · ') || '免费频道'}</div>
+          <div class="d-line">${cats ? ('分类：' + cats) : 'iptv-org 免费源'}</div>
+          <div class="d-actions">
+            <div class="btn-play" onclick="play()">▶ 立即播放</div>
+            <div class="btn-fav" onclick="fav()">🤍 收藏</div>
+          </div>
+        </div>
+      </div>
+      <section class="card" style="margin-top:4px">
+        <h2>频道信息</h2>
+        <div class="meta-list">
+          ${metaRow('国家/地区', d.countryName ? (flag + ' ' + esc(d.countryName)) : '')}
+          ${metaRow('语言', esc(d.langCN))}
+          ${metaRow('分类', esc(cats))}
+          ${metaRow('别名', esc(d.alt))}
+          ${metaRow('电视台', esc(r.network))}
+          ${metaRow('所有者', esc(owners))}
+          ${metaRow('开播', esc(r.launched))}
+          ${metaRow('停播', esc(r.closed))}
+          ${metaRow('官网', web)}
+        </div>
+      </section>
+      ${recHTML}
+      <div style="height:18px"></div>`;
+    window.MpUI.lazyScan();
+    syncBtns();
+  }
+  MpPageLifeCycle.init({
+    onLoad: (data) => { MpSetNavTitle('频道'); render(data.c); },
+    onShow: () => { if (cur) { window.AppStore.addHistory(cur); syncBtns(); } },
+    onHide: () => {}, onDestroy: () => {}
+  });
+</script>
+</html>

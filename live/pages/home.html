@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>直播</title>
+  <link rel="stylesheet" href="./page.css">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js"></script>
+  <script src="./api.js"></script>
+  <script src="./store.js"></script>
+</head>
+<body>
+  <main class="page-body" id="body">
+    <div class="search-bar" onclick="goSearch()">
+      <i>🔍</i><span>搜索频道 / 国家 / 语言…</span>
+    </div>
+    <div id="offbar"></div>
+    <div class="hero" id="hero">
+      <div class="hero-track" id="heroTrack"></div>
+      <div class="hero-dots" id="heroDots"></div>
+    </div>
+    <div class="section" style="margin-top:18px"><div class="section-title"><span class="bar"></span>快捷入口</div></div>
+    <div class="qgrid" id="qgrid"></div>
+    <div id="dyn"></div>
+    <div style="height:8px"></div>
+  </main>
+</body>
+<script>
+  function goSearch() { MpNavigateTo('./pages/search.html', '搜索', {}); }
+  function goCategory() { MpNavigateTo('./pages/category.html', '分类', {}); }
+  function goCategories() { MpNavigateTo('./pages/categories.html', '全部分类', {}); }
+  function goRank() { MpNavigateTo('./pages/rank.html', '精选', {}); }
+  function goFav() { MpNavigateTo('./pages/favlist.html', '我的收藏', {}); }
+  function goHistory() { MpNavigateTo('./pages/history.html', '观看历史', {}); }
+  function goSettings() { MpNavigateTo('./pages/settings.html', '设置', {}); }
+  function goChannelList(type, value, label) { MpNavigateTo('./pages/channels.html', label, { type: type, value: value, label: label }); }
+  function openChannel(id) { MpNavigateTo('./pages/channel.html', '频道', { c: id }); }
+  function play(id) { MpNavigateTo('./pages/player.html', '播放', { c: id }); }
+
+  const esc = window.MpUI.esc;
+  let _heroIdx = 0, _heroTimer = null;
+
+  function renderOffline() {
+    if (window.TVAPI.isOffline()) {
+      document.getElementById('offbar').innerHTML = '<div class="offline-bar">⚠️ 实时接口暂不可用，已切换本地缓存数据（可能非最新）</div>';
+    }
+  }
+  function renderHeroCats(cats) {
+    const slides = cats.slice(0, 5);
+    const track = document.getElementById('heroTrack');
+    const dots = document.getElementById('heroDots');
+    track.innerHTML = slides.map(c => {
+      const grad = window.MpUI.gradFor({ code: '', name: c.name });
+      return `
+      <div class="hero-slide" style="background:${grad}" onclick="goChannelList('category','${esc(c.id)}','${esc(c.name)}')">
+        <div class="b-inner">
+          <div class="b-tag">📺 ${c.count || ''} 个频道 · 分类</div>
+          <div class="b-title">${esc(c.name)}</div>
+          <div class="b-sub">${esc(c.desc || '')}</div>
+        </div>
+        <div class="b-play" onclick="event.stopPropagation();goChannelList('category','${esc(c.id)}','${esc(c.name)}')">▶</div>
+      </div>`;
+    }).join('');
+    dots.innerHTML = slides.map((_, i) => `<i class="${i === 0 ? 'on' : ''}"></i>`).join('');
+    _heroIdx = 0;
+    if (_heroTimer) clearInterval(_heroTimer);
+    if (slides.length > 1) {
+      _heroTimer = setInterval(() => {
+        _heroIdx = (_heroIdx + 1) % slides.length;
+        track.style.transform = `translateX(-${_heroIdx * 100}%)`;
+        dots.querySelectorAll('i').forEach((el, i) => el.classList.toggle('on', i === _heroIdx));
+      }, 4000);
+    }
+  }
+  function renderQgrid() {
+    const tiles = [
+      { i: '🌍', n: '国家', c: '#3aa0ff', f: goCategory },
+      { i: '🗂️', n: '分类', c: '#ff2d55', f: goCategories },
+      { i: '🗣️', n: '语言', c: '#34c759', f: goCategory },
+      { i: '📰', n: '新闻', c: '#ff5e9a', f: () => goChannelList('category', 'news', '新闻') },
+      { i: '⚽', n: '体育', c: '#ff8a3a', f: () => goChannelList('category', 'sports', '体育') },
+      { i: '🏆', n: '精选', c: '#ffd24a', f: goRank },
+      { i: '❤️', n: '收藏', c: '#ff5e9a', f: goFav },
+      { i: '⚙️', n: '设置', c: '#8a90a0', f: goSettings }
+    ];
+    document.getElementById('qgrid').innerHTML = tiles.map(x =>
+      `<div class="qcell" onclick="${x.f.name}()">
+        <div class="ic" style="color:${x.c}">${x.i}</div><span>${x.n}</span></div>`).join('');
+  }
+  async function renderStats() {
+    try {
+      const s = await window.TVAPI.stats();
+      const html = `<div class="bigstat">
+        <div class="bs"><div class="n">${(s.channels || 0).toLocaleString()}</div><div class="l">频道</div></div>
+        <div class="bs"><div class="n">${(s.countries || 0).toLocaleString()}</div><div class="l">国家/地区</div></div>
+        <div class="bs"><div class="n">${(s.categories || 0).toLocaleString()}</div><div class="l">分类</div></div>
+      </div>`;
+      document.getElementById('dyn').insertAdjacentHTML('beforeend',
+        `<div class="section" style="margin-top:20px"><div class="section-title"><span class="bar"></span>实时数据</div></div>${html}`);
+    } catch (e) {}
+  }
+  async function renderRegions() {
+    try {
+      const rs = await window.TVAPI.allRegions();
+      if (!rs.length) return;
+      const html = `<div class="section" style="margin-top:20px"><div class="section-title"><span class="bar"></span>按地区</div></div>
+        <div class="chip-row">${rs.slice(0, 24).map(r => `<div class="chip" onclick="goChannelList('region','${esc(r.name)}','${esc(r.name)}')">${esc(r.name)}</div>`).join('')}</div>`;
+      document.getElementById('dyn').insertAdjacentHTML('beforeend', html);
+    } catch (e) {}
+  }
+  async function renderTopCats() {
+    try {
+      const cats = await window.TVAPI.allCategories();
+      const top = cats.slice().sort((a, b) => (b.count || 0) - (a.count || 0)).slice(0, 8);
+      const ico = { news: '📰', sports: '⚽', general: '📺', movies: '🎬', music: '🎵', documentary: '🎥', kids: '🧸', entertainment: '🎭' };
+      const html = `<div class="section" style="margin-top:20px"><div class="section-title"><span class="bar"></span>热门分类</div>
+        <div class="section-more" onclick="goCategories()">全部 ›</div></div>
+        <div class="cat-grid">${top.map(c => `<div class="cat-card" onclick="goChannelList('category','${esc(c.id)}','${esc(c.name)}')">
+          <div class="cc-ico">${ico[c.id] || '📺'}</div><div class="cc-name">${esc(c.name)}</div>
+          <div class="cc-desc">${esc(c.desc || '')}</div><div class="cc-count">${c.count || 0}</div></div>`).join('')}</div>`;
+      document.getElementById('dyn').insertAdjacentHTML('beforeend', html);
+    } catch (e) {}
+  }
+  async function renderCountries() {
+    try {
+      const pc = await window.TVAPI.popularCountries(28);
+      const html = `<div class="section" style="margin-top:20px"><div class="section-title"><span class="bar"></span>热门国家</div></div>
+        <div class="flag-strip">${pc.map(p => `<div class="fs-item" onclick="goChannelList('country','${esc(p.code)}','${esc(p.name)}')">
+          <div class="fs-flag">${p.flag}</div><div class="fs-name">${esc(p.name)}</div><div class="fs-count">${p.count}</div></div>`).join('')}</div>`;
+      document.getElementById('dyn').insertAdjacentHTML('beforeend', html);
+    } catch (e) {}
+  }
+  async function renderLive() {
+    try {
+      const chs = await window.TVAPI.getChannels();
+      const sample = chs.slice(0, 14).map(window.TVAPI.norm);
+      if (sample.length) {
+        const html = `<div class="section" style="margin-top:20px"><div class="section-title"><span class="bar"></span>频道库</div>
+          <div class="section-more" onclick="goRank()">更多 ›</div></div>
+          <div class="h-scroll">${sample.map(d => window.MpUI.channelCard(d)).join('')}</div>`;
+        document.getElementById('dyn').insertAdjacentHTML('beforeend', html);
+        window.MpUI.lazyScan();
+      }
+    } catch (e) {}
+  }
+
+  MpPageLifeCycle.init({
+    onLoad: () => {
+      renderOffline();
+      renderQgrid();
+      renderStats();
+      renderRegions();
+      renderTopCats();
+      renderCountries();
+      renderLive();
+      try { window.TVAPI.allCategories().then(renderHeroCats); } catch (e) {}
+    },
+    onShow: () => {}, onHide: () => {}, onDestroy: () => { if (_heroTimer) clearInterval(_heroTimer); }
+  });
+</script>
+</html>
