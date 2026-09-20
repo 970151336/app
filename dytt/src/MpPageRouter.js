@@ -118,7 +118,6 @@ class MpPageRouter {
                 display: block !important;
                 transform: translate3d(100%, 0, 0);   /* 默认在屏幕右侧外 */
                 will-change: transform;
-                background: #fff;
             }
             .page-wrap.initial { transform: translate3d(0, 0, 0) !important; }  /* 根页面不滑动入场 */
             /* 关键：强制覆盖宿主页可能遗留的 .page-iframe { transform: translateX(100%) / display:none } 等规则，
