@@ -154,10 +154,10 @@
         //     currentPageName = valid.key;
         //     loadPage(valid.key);
         // } else {
-            currentPageName = tabList[1].key;
+            currentPageName = tabList[0].key;
             // 影响右滑返回
             // history.replaceState({ tab: tabList[0].key }, '', '#' + tabList[0].key);
-            loadPage(tabList[1].key);
+            loadPage(tabList[0].key);
         // }
         updateNavStatus(currentPageName);
         window.addEventListener('popstate', () => {
