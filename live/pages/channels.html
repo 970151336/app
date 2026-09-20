@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>频道</title>
+  <link rel="stylesheet" href="./page.css?v=8">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js?v=8"></script>
+  <script src="./api.js?v=8"></script>
+  <script src="./store.js?v=8"></script>
+</head>
+<body>
+  <main class="page-body" id="body"><div class="empty"><i>⏳</i> 加载中…</div></main>
+</body>
+<script>
+  const esc = window.MpUI.esc;
+  function openChannel(id) { MpNavigateTo('./pages/channel.html', '频道', { c: id }); }
+  let _type = 'all', _value = 'all', _label = '', _filtered = 0;
+
+  function setProgress(recv, total) {
+    const bar = document.getElementById('pfill');
+    const lab = document.getElementById('plab');
+    if (!bar) return;
+    const mb = (recv / 1048576);
+    const pct = total ? Math.min(99, Math.round(recv / total * 100)) : Math.min(95, Math.round(mb / 30 * 100));
+    bar.style.width = pct + '%';
+    lab.textContent = '实时拉取频道库… ' + mb.toFixed(1) + ' MB' + (total ? ' / ' + (total / 1048576).toFixed(1) + ' MB' : ' (约 30 MB)');
+  }
+  function sectionHead(title, count) {
+    const note = _filtered > 0 ? `<div style="margin:0 2px 10px;font-size:12px;color:var(--text-sub2)">🛰 已过滤 ${_filtered} 个无播放源的频道（依据 iptv-org streams）</div>` : '';
+    return `<div class="section" style="margin-top:2px"><div class="section-title"><span class="bar"></span>${esc(title)}</div>
+      <div class="section-more">${count} 个频道</div></div>` + note;
+  }
+  function renderEmpty(msg) {
+    document.getElementById('body').innerHTML = sectionHead(_label || '频道', 0) +
+      `<div class="empty"><i>📡</i><div>${esc(msg || '该分类暂无频道')}</div>
+       <div style="font-size:12px;color:var(--text-sub);margin-top:6px">数据来自 iptv-org 实时接口</div></div>`;
+  }
+  function render(list) {
+    if (!list.length) { renderEmpty(); return; }
+    document.getElementById('body').innerHTML = sectionHead(_label || '频道', list.length) +
+      `<div class="ch-grid" id="grid">${list.map(d => window.MpUI.channelCard(d)).join('')}</div><div style="height:10px"></div>`;
+    window.MpUI.lazyScan(); if(window.MpUI.liveProbe) window.MpUI.liveProbe();
+  }
+  async function load() {
+    document.getElementById('body').innerHTML =
+      `<div class="progress"><div class="p-label"><span id="plab">实时拉取频道库…</span><span></span></div>
+       <div class="p-track"><div class="p-fill" id="pfill" style="width:0"></div></div></div>
+       <div class="empty" style="padding:30px 0">正在从 iptv-org 获取实时数据…</div>`;
+    try {
+      const A = window.TVAPI;
+      await A.getChannels(setProgress);
+      let list;
+      if (_type === 'country') list = await A.channelsByCountry(_value);
+      else if (_type === 'region') list = await A.channelsByRegion(_value);
+      else if (_type === 'language') list = await A.channelsByLanguage(_value);
+      else if (_type === 'category') list = await A.channelsByCategory(_value);
+      else list = (await A.getChannels()).map(A.norm);
+      // 更彻底：仅保留在 streams.json 里有可用播放源的频道
+      const before = list.length;
+      list = await A.filterPlayable(list);
+      _filtered = Math.max(0, before - list.length);
+      render(list);
+    } catch (e) {
+      document.getElementById('body').innerHTML = `<div class="empty"><i>📡</i><div>实时数据加载失败</div>
+        <div style="font-size:12px;color:var(--text-sub);margin-top:6px">${esc(String(e && e.message || e))}</div>
+        <div class="ebtn" onclick="load()">↻ 重试</div></div>`;
+    }
+  }
+  MpPageLifeCycle.init({
+    onLoad: (data) => {
+      data = data || {};
+      _type = data.type || 'all'; _value = data.value || 'all'; _label = data.label || '';
+      MpSetNavTitle(_label || '频道');
+      load();
+    },
+    onShow: () => {}, onHide: () => {}, onDestroy: () => {}
+  });
+</script>
+</html>

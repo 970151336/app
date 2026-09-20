@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>精选</title>
+  <link rel="stylesheet" href="./page.css?v=8">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js?v=8"></script>
+  <script src="./api.js?v=8"></script>
+  <script src="./store.js?v=8"></script>
+</head>
+<body>
+  <main class="page-body" id="body">
+    <div class="seg" id="seg">
+      <div class="seg-item active" data-k="country" onclick="switchSeg('country')">热门国家</div>
+      <div class="seg-item" data-k="region" onclick="switchSeg('region')">按地区</div>
+      <div class="seg-item" data-k="recent" onclick="switchSeg('recent')">最近观看</div>
+    </div>
+    <div id="list"></div>
+    <div style="height:10px"></div>
+  </main>
+</body>
+<script>
+  const esc = window.MpUI.esc;
+  function openChannel(id) { MpNavigateTo('./pages/channel.html', '频道', { c: id }); }
+  function goCountry(code, name) { MpNavigateTo('./pages/channels.html', name, { type: 'country', value: code, label: name }); }
+  function goRegion(name) { MpNavigateTo('./pages/channels.html', name, { type: 'region', value: name, label: name }); }
+  let _cur = 'country';
+
+  function cover(ch) { return `<div class="cover" style="background:${window.MpUI.gradFor(ch)}">${esc((ch.name || '?').trim().charAt(0).toUpperCase())}</div>`; }
+
+  async function renderCountry() {
+    const list = await window.TVAPI.popularCountries(40);
+    const html = list.map((p, i) => {
+      const noCls = i < 3 ? ' top' + (i + 1) : '';
+      return `<div class="rank-item" onclick="goCountry('${esc(p.code)}','${esc(p.name)}')">
+        <div class="rank-no${noCls}">${i + 1}</div>
+        <div class="cover" style="background:${window.MpUI.gradFor({ code: p.code, name: p.name })};font-size:20px">${p.flag}</div>
+        <div class="rank-main"><b>${esc(p.name)}</b><small>${esc(p.region || '')} · ${p.count} 个频道</small></div>
+        <div class="rank-score">${p.count}<small> 台</small></div></div>`;
+    }).join('');
+    document.getElementById('list').innerHTML = `<ul class="rank-list">${html}</ul>`;
+  }
+  async function renderRegion() {
+    document.getElementById('list').innerHTML = `<div class="progress"><div class="p-track"><div class="p-fill" style="width:30%"></div></div></div><div class="empty" style="padding:24px 0">统计各地区频道数…</div>`;
+    const [regions, chs] = await Promise.all([window.TVAPI.allRegions(), window.TVAPI.getChannels()]);
+    const cnt = {};
+    regions.forEach(rg => {
+      const set = new Set(rg.countries || []);
+      cnt[rg.name] = chs.filter(c => set.has(c.country)).length;
+    });
+    const list = regions.map((r, i) => {
+      const n = cnt[r.name] || 0; const noCls = i < 3 ? ' top' + (i + 1) : '';
+      return `<div class="rank-item" onclick="goRegion('${esc(r.name)}')">
+        <div class="rank-no${noCls}">${i + 1}</div>
+        <div class="cover" style="background:${window.MpUI.gradFor({ code: '', name: r.name })};font-size:18px">🌐</div>
+        <div class="rank-main"><b>${esc(r.name)}</b><small>${r.countries.length} 个国家 · ${n} 个频道</small></div>
+        <div class="rank-score">${n}<small> 台</small></div></div>`;
+    }).join('');
+    document.getElementById('list').innerHTML = `<ul class="rank-list">${list}</ul>`;
+  }
+  function renderRecent() {
+    const his = window.AppStore.getHistory();
+    if (!his.length) {
+      document.getElementById('list').innerHTML = `<div class="empty"><i>🕑</i><div>还没有观看记录</div><div style="font-size:12px;color:var(--text-sub);margin-top:6px">去首页挑个频道看看吧</div></div>`;
+      return;
+    }
+    const html = his.map((d, i) => `<div class="rank-item" onclick="openChannel('${esc(d.id)}')">
+      <div class="rank-no">${i + 1}</div>
+      <div class="cover" style="background:${window.MpUI.gradFor(d)}">${esc((d.name || '?').trim().charAt(0).toUpperCase())}</div>
+      <div class="rank-main"><b>${esc(d.name)}</b><small>${[d.countryName, d.langCN].filter(Boolean).join(' · ')}</small></div>
+      <div class="rank-score" style="font-size:12px;color:var(--text-sub)">▶</div></div>`).join('');
+    document.getElementById('list').innerHTML = `<ul class="rank-list">${html}</ul>`;
+  }
+  function switchSeg(k) {
+    _cur = k;
+    document.querySelectorAll('#seg .seg-item').forEach(el => el.classList.toggle('active', el.dataset.k === k));
+    if (k === 'country') renderCountry();
+    else if (k === 'region') renderRegion();
+    else renderRecent();
+  }
+  MpPageLifeCycle.init({
+    onLoad: () => { renderCountry(); },
+    onShow: () => {}, onHide: () => {}, onDestroy: () => {}
+  });
+</script>
+</html>

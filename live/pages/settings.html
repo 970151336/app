@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>设置</title>
+  <link rel="stylesheet" href="./page.css?v=8">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js?v=8"></script>
+  <script src="./api.js?v=8"></script>
+  <script src="./store.js?v=8"></script>
+</head>
+<body>
+  <main class="page-body" id="body">
+    <div class="section" style="margin-top:2px"><div class="section-title"><span class="bar"></span>数据</div></div>
+    <div class="card">
+      <div class="row" onclick="window.open('https://github.com/iptv-org/api','_blank')"><div class="row-ico" style="background:#ff2d55">📡</div><div class="row-main"><b>数据来源</b><small>iptv-org API · 浏览器实时请求</small></div><div class="row-chev">↗</div></div>
+      <div class="row" onclick="MpNavigateTo('./pages/category.html','分类',{})"><div class="row-ico" style="background:#3aa0ff">🗂️</div><div class="row-main"><b>频道分类</b><small>国家 / 语言 / 地区 / 类型</small></div><div class="row-chev">›</div></div>
+      <div class="row" onclick="MpNavigateTo('./pages/guide.html','节目单',{})"><div class="row-ico" style="background:#ffd24a">📋</div><div class="row-main"><b>节目单 EPG</b><small>实时 guides 接口</small></div><div class="row-chev">›</div></div>
+    </div>
+    <div class="section" style="margin-top:18px"><div class="section-title"><span class="bar"></span>缓存</div></div>
+    <div class="card">
+      <div class="row" onclick="clearCache()"><div class="row-ico" style="background:#ff8a3a">🔄</div><div class="row-main"><b>清除频道库缓存</b><small>重新从接口拉取最新数据</small></div><div class="row-chev">›</div></div>
+    </div>
+    <div class="section" style="margin-top:18px"><div class="section-title"><span class="bar"></span>本地数据</div></div>
+    <div class="card">
+      <div class="row" onclick="AppStore.clearFavs();toast('已清空收藏')"><div class="row-ico" style="background:#ff5e9a">❤️</div><div class="row-main"><b>清空收藏</b><small id="favN">0 个</small></div><div class="row-chev">›</div></div>
+      <div class="row" onclick="AppStore.clearHistory();toast('已清空历史')"><div class="row-ico" style="background:#9aa0ff">🕑</div><div class="row-main"><b>清空观看历史</b><small id="hisN">0 条</small></div><div class="row-chev">›</div></div>
+    </div>
+    <div class="section" style="margin-top:18px"><div class="section-title"><span class="bar"></span>关于</div></div>
+    <div class="card">
+      <div class="row"><div class="row-ico" style="background:#34c759">ℹ️</div><div class="row-main"><b>版本</b><small>2.0.0 · H5 实时版</small></div></div>
+      <div class="row"><div class="row-ico" style="background:#8a90a0">📺</div><div class="row-main"><b>播放引擎</b><small>hls.js / 原生 HLS</small></div></div>
+    </div>
+    <div style="height:18px"></div>
+  </main>
+  <div class="player-toast" id="toast"></div>
+</body>
+<script>
+  function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 1600); }
+  async function clearCache() {
+    try { await window.TVAPI.clearCache(); toast('缓存已清除，下次进入将重新拉取'); }
+    catch (e) { toast('清除失败'); }
+  }
+  function refresh() {
+    try {
+      document.getElementById('favN').textContent = window.AppStore.getFavs().length + ' 个';
+      document.getElementById('hisN').textContent = window.AppStore.getHistory().length + ' 条';
+    } catch (e) {}
+  }
+  MpPageLifeCycle.init({
+    onLoad: () => { refresh(); },
+    onShow: () => { refresh(); }, onHide: () => {}, onDestroy: () => {}
+  });
+</script>
+</html>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>分类</title>
+  <link rel="stylesheet" href="./page.css?v=8">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js?v=8"></script>
+  <script src="./api.js?v=8"></script>
+  <script src="./store.js?v=8"></script>
+</head>
+<body>
+  <main class="page-body" id="body">
+    <div id="offbar"></div>
+    <div class="section" style="margin-top:2px"><div class="section-title"><span class="bar"></span>按地区</div></div>
+    <div class="chip-row" id="regionChips"><div class="sk" style="width:80px;height:38px"></div></div>
+    <div class="section" style="margin-top:20px"><div class="section-title"><span class="bar"></span>按语言</div></div>
+    <div class="chip-row" id="langChips"><div class="sk" style="width:80px;height:38px"></div></div>
+    <div class="section" style="margin-top:20px"><div class="section-title"><span class="bar"></span>按类型</div></div>
+    <div class="chip-row" id="typeChips"></div>
+    <div class="section" style="margin-top:20px"><div class="section-title"><span class="bar"></span>全部国家 / 地区</div>
+      <div class="section-more" onclick="MpNavigateTo('./pages/rank.html','国家排行',{})">按频道数 ›</div></div>
+    <div class="card" id="countryList" style="margin-top:6px"><div class="empty" style="padding:30px 0">加载国家列表中…</div></div>
+    <div style="height:14px"></div>
+  </main>
+</body>
+<script>
+  const esc = window.MpUI.esc;
+  function goChannelList(type, value, label) { MpNavigateTo('./pages/channels.html', label, { type: type, value: value, label: label }); }
+  function renderOffline() { if (window.TVAPI.isOffline()) document.getElementById('offbar').innerHTML = '<div class="offline-bar">⚠️ 实时接口暂不可用，已切换本地缓存数据</div>'; }
+  const TYPE_MAP = [
+    ['news', '📰 新闻'], ['sports', '⚽ 体育'], ['general', '📺 综合'], ['movies', '🎬 电影'],
+    ['music', '🎵 音乐'], ['documentary', '🎥 纪录片'], ['kids', '🧸 少儿'], ['entertainment', '🎭 娱乐'],
+    ['business', '💹 财经'], ['education', '📚 教育'], ['religion', '⛪ 宗教'], ['gaming', '🎮 游戏']
+  ];
+
+  async function renderRegions() {
+    try {
+      const rs = await window.TVAPI.allRegions();
+      document.getElementById('regionChips').innerHTML = rs.length
+        ? rs.map(r => `<div class="chip" onclick="goChannelList('region','${esc(r.name)}','${esc(r.name)}')">${esc(r.name)}</div>`).join('')
+        : '<small style="color:var(--text-sub)">暂无数据</small>';
+    } catch (e) { document.getElementById('regionChips').innerHTML = '<small style="color:var(--text-sub)">加载失败</small>'; }
+  }
+  async function renderLangs() {
+    try {
+      const ls = await window.TVAPI.allLanguages();
+      document.getElementById('langChips').innerHTML = ls.length
+        ? ls.map(l => `<div class="chip" onclick="goChannelList('language','${esc(l.code)}','${esc(l.name)}')">${esc(l.name)}</div>`).join('')
+        : '<small style="color:var(--text-sub)">暂无数据</small>';
+    } catch (e) { document.getElementById('langChips').innerHTML = '<small style="color:var(--text-sub)">加载失败</small>'; }
+  }
+  function renderTypes() {
+    document.getElementById('typeChips').innerHTML = TYPE_MAP.map(([id, n]) =>
+      `<div class="chip" onclick="goChannelList('category','${id}','${esc(n.replace(/^.* /,''))}')">${n}</div>`).join('');
+  }
+  async function renderCountries() {
+    try {
+      const cs = await window.TVAPI.allCountries();
+      document.getElementById('countryList').innerHTML = cs.map(c =>
+        `<div class="country-row" onclick="goChannelList('country','${esc(c.code)}','${esc(c.name)}')">
+          <div class="flag">${c.flag || window.TVAPI.flagEmoji(c.code)}</div>
+          <div class="cr-main"><b>${esc(c.name)}</b><small>${esc(c.code)} · ${(c.languages || []).join(', ')}</small></div>
+          <div class="cr-count">进入 ›</div></div>`).join('');
+    } catch (e) {
+      document.getElementById('countryList').innerHTML = '<div class="empty">国家列表加载失败</div>';
+    }
+  }
+  MpPageLifeCycle.init({
+    onLoad: () => { renderOffline(); renderRegions(); renderLangs(); renderTypes(); renderCountries(); },
+    onShow: () => {}, onHide: () => {}, onDestroy: () => {}
+  });
+</script>
+</html>

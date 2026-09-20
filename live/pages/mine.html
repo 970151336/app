@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>我的</title>
+  <link rel="stylesheet" href="./page.css?v=8">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js?v=8"></script>
+  <script src="./api.js?v=8"></script>
+  <script src="./store.js?v=8"></script>
+</head>
+<body>
+  <main class="page-body" id="body">
+    <div class="profile-head">
+      <div class="avatar">📺</div>
+      <div class="name">电视迷</div>
+      <div class="mail">iptv-org 全球实时电视</div>
+    </div>
+    <div class="stat-row">
+      <div class="stat" onclick="MpNavigateTo('./pages/favlist.html','我的收藏',{})"><div class="num" id="favN">0</div><div class="lab">收藏</div></div>
+      <div class="stat" onclick="MpNavigateTo('./pages/history.html','观看历史',{})"><div class="num" id="hisN">0</div><div class="lab">历史</div></div>
+      <div class="stat" onclick="MpNavigateTo('./pages/category.html','分类',{})"><div class="num" id="couN">0</div><div class="lab">国家</div></div>
+    </div>
+    <div class="menu">
+      <div class="menu-item" onclick="MpNavigateTo('./pages/favlist.html','我的收藏',{})"><div class="mi-ico" style="background:#ff5e9a">❤️</div><div class="mi-main">我的收藏</div><div class="mi-chev">›</div></div>
+      <div class="menu-item" onclick="MpNavigateTo('./pages/history.html','观看历史',{})"><div class="mi-ico" style="background:#9aa0ff">🕑</div><div class="mi-main">观看历史</div><div class="mi-chev">›</div></div>
+      <div class="menu-item" onclick="MpNavigateTo('./pages/category.html','分类',{})"><div class="mi-ico" style="background:#3aa0ff">🗂️</div><div class="mi-main">全部分类</div><div class="mi-chev">›</div></div>
+    </div>
+    <div class="menu">
+      <div class="menu-item" onclick="MpNavigateTo('./pages/guide.html','节目单',{})"><div class="mi-ico" style="background:#ffd24a">📋</div><div class="mi-main">节目单 EPG</div><div class="mi-chev">›</div></div>
+      <div class="menu-item" onclick="MpNavigateTo('./pages/settings.html','设置',{})"><div class="mi-ico" style="background:#8a90a0">⚙️</div><div class="mi-main">设置</div><div class="mi-chev">›</div></div>
+      <div class="menu-item" onclick="about()"><div class="mi-ico" style="background:#34c759">ℹ️</div><div class="mi-main">关于 / 数据来源</div><div class="mi-chev">›</div></div>
+    </div>
+    <div style="height:18px"></div>
+  </main>
+</body>
+<script>
+  function about() {
+    MpSetNavTitle('关于');
+    document.getElementById('body').innerHTML = `
+      <div class="card" style="margin-top:8px;padding:16px;line-height:1.8;font-size:14px;color:var(--text-sub2)">
+        <b style="color:#fff">全球电视直播 · 实时版</b><br>
+        频道、分类、节目单等数据均通过浏览器<b>实时请求</b>
+        <a style="color:var(--link)" href="https://github.com/iptv-org/api" target="_blank">iptv-org API</a>，
+        不写入本地数据文件；播放流按需从 iptv-org 拉取。<br><br>
+        数据版权归各电视台所有，仅供个人学习交流使用。
+      </div>
+      <div style="height:18px"></div>`;
+  }
+  async function refresh() {
+    try {
+      document.getElementById('favN').textContent = window.AppStore.getFavs().length;
+      document.getElementById('hisN').textContent = window.AppStore.getHistory().length;
+      let n = (window.TV_COUNTRIES || []).length;
+      try { const cs = await window.TVAPI.allCountries(); n = cs.length; } catch (e) {}
+      document.getElementById('couN').textContent = n;
+    } catch (e) {}
+  }
+  MpPageLifeCycle.init({
+    onLoad: () => { refresh(); },
+    onShow: () => { refresh(); }, onHide: () => {}, onDestroy: () => {}
+  });
+</script>
+</html>

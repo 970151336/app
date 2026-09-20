@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>播放</title>
+  <link rel="stylesheet" href="./page.css?v=8">
+  <script src="../src/MpPageRouter.js"></script>
+  <script src="./data.js?v=8"></script>
+  <script src="./api.js?v=8"></script>
+  <script src="./store.js?v=8"></script>
+  <style>
+    .player-page { padding-top: calc(44px + env(safe-area-inset-top,0px)); }
+    .player-meta { padding: 10px 14px 2px; }
+    .player-meta .pm-t { font-size: 16px; font-weight: 700; color: #fff; }
+    .player-meta .pm-s { font-size: 12px; color: var(--text-sub); margin-top: 3px; }
+    .src-head { display: flex; align-items: baseline; justify-content: space-between; padding: 14px 14px 8px; }
+    .src-head .t { font-size: 15px; font-weight: 700; color: #fff; }
+    .src-head .c { font-size: 12px; color: var(--text-sub); }
+  </style>
+</head>
+<body>
+  <main class="page-body player-page" id="body" style="padding-bottom:24px">
+    <div class="player-wrap">
+      <video id="pv" playsinline webkit-playsinline x5-playsinline controls preload="metadata"></video>
+      <div class="ghs-box" id="ghsBox"><iframe id="ghsIframe" allow="autoplay; encrypted-media; fullscreen" allowfullscreen scrolling="no"></iframe></div>
+    </div>
+    <div class="player-meta" id="pmeta"></div>
+    <div class="src-head"><span class="t">播放源</span><span class="c" id="srcCount"></span></div>
+    <div class="progress" id="sprog" style="display:none;margin:8px 14px 0">
+      <div class="p-label"><span id="splab">加载播放源数据…</span><span id="sppct"></span></div>
+      <div class="p-track"><div class="p-fill" id="spfill" style="width:0"></div></div>
+    </div>
+    <div class="line-row" id="lineRow" style="padding-top:4px"><div class="empty" style="padding:20px 0">获取实时播放源…</div></div>
+    <div class="player-toast" id="toast"></div>
+    <div style="padding:6px 14px 0;color:var(--text-sub);font-size:12px;line-height:1.6" id="hint">
+      数据来自 iptv-org 实时接口；免费源可能因地域/时段不稳定，可切换下方其它播放源。
+    </div>
+  </main>
+</body>
+<script>
+  let cur = null, hls = null, _hlsLoading = null, _streams = [], _idx = 0;
+  function ensureHls(cb) {
+    if (window.Hls) { cb(); return; }
+    if (_hlsLoading) { _hlsLoading.then(cb); return; }
+    _hlsLoading = new Promise((res) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js';
+      s.onload = () => res(); s.onerror = () => res();
+      document.head.appendChild(s);
+    });
+    _hlsLoading.then(cb);
+  }
+  function destroyHls() { if (hls) { try { hls.destroy(); } catch (e) {} hls = null; } }
+  function showVideo() {
+    const box = document.getElementById('ghsBox'); const ifr = document.getElementById('ghsIframe');
+    box.style.display = 'none'; ifr.removeAttribute('src'); document.getElementById('pv').style.display = 'block';
+  }
+  function showGhs(url) {
+    destroyHls(); document.getElementById('pv').style.display = 'none';
+    const box = document.getElementById('ghsBox'); box.style.display = 'block';
+    document.getElementById('ghsIframe').src = url;
+  }
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+  // stream: 可选，含 referrer / userAgent，用于需要鉴权的源（hls.js 通过 xhrSetup 注入请求头）
+  function loadIntoVideo(url, stream) {
+    const video = document.getElementById('pv'); destroyHls();
+    const ua = navigator.userAgent;
+    const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isSafari = /^((?!chrome|android|crios|fxios|edg).)*safari/i.test(ua);
+    if ((isIOS || isSafari) && video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = url; video.play().catch(() => {}); return;
+    }
+    ensureHls(() => {
+      if (window.Hls && window.Hls.isSupported()) {
+        hls = new window.Hls();
+        // 部分源需要 Referer / 自定义 UA 才能播放，注入到 m3u8 与分片请求
+        if (stream && (stream.referrer || stream.userAgent)) {
+          hls.config.xhrSetup = function (xhr, u) {
+            if (stream.referrer) { try { xhr.setRequestHeader('Referer', stream.referrer); } catch (e) {} }
+            if (stream.userAgent) { try { xhr.setRequestHeader('User-Agent', stream.userAgent); } catch (e) {} }
+          };
+        }
+        hls.loadSource(url); hls.attachMedia(video);
+        hls.on(window.Hls.Events.ERROR, (e, data) => {
+          if (!data || !data.fatal) return;
+          toast('该源暂不可用，请切换其它播放源');
+        });
+        video.play().catch(() => {});
+      } else { toast('当前浏览器不支持 HLS，请换 Safari 或 Chrome'); }
+    });
+  }
+  function isEmbed(u) { return /youtube|player|embed|dailymotion|youtu\.be|facebook|twitch/i.test(u) && !/\.(mp4|webm|mkv|mov|m3u8)($|\?)/i.test(u); }
+  function playSrc(i) {
+    if (!_streams[i]) return;
+    _idx = i;
+    const s = _streams[i];
+    MpSetNavTitle(cur && (cur.title || cur.name) ? (cur.title || cur.name) : '播放');
+    if (isEmbed(s.url)) { showGhs(s.url); }
+    else { showVideo(); loadIntoVideo(s.url, s); }
+    document.querySelectorAll('#lineRow .src-chip').forEach((el, k) => el.classList.toggle('active', k === i));
+  }
+  function fav() { if (!cur) return; window.AppStore.toggleFav(cur); syncFav(); }
+  function syncFav() {
+    if (!cur) return;
+    const f = window.AppStore.isFav(cur.id);
+    MpSetNavRightBar('<div style="font-size:18px" onclick="fav()">' + (f ? '❤️' : '🤍') + '</div>');
+  }
+  function setStreamProgress(recv, total) {
+    const bar = document.getElementById('spfill'), lab = document.getElementById('splab'), pct = document.getElementById('sppct');
+    if (!bar) return;
+    const mb = recv / 1048576;
+    const p = total ? Math.min(99, Math.round(recv / total * 100)) : Math.min(95, Math.round(mb / 50 * 100));
+    bar.style.width = p + '%';
+    lab.textContent = '加载播放源数据… ' + mb.toFixed(1) + ' MB' + (total ? ' / ' + (total / 1048576).toFixed(1) + ' MB' : ' (约 50 MB)');
+    if (pct) pct.textContent = p + '%';
+  }
+  async function loadStreams(id, name) {
+    cur = { id: id, name: name || id };
+    document.getElementById('pmeta').innerHTML = `<div class="pm-t">${window.MpUI.esc((name || id))}</div><div class="pm-s">实时获取播放源中…</div>`;
+    document.getElementById('sprog').style.display = 'block';
+    document.getElementById('spfill').style.width = '0%';
+    try {
+      const ch = await window.TVAPI.getChannel(id);
+      if (ch) { cur = ch; document.getElementById('pmeta').innerHTML = `<div class="pm-t">${window.MpUI.esc(ch.title || ch.name)}</div><div class="pm-s">${[ch.countryName, ch.langCN, ch.group].filter(Boolean).join(' · ')}</div>`; }
+    } catch (e) {}
+    syncFav();
+    try {
+      _streams = await window.TVAPI.getStreamsForChannel(id, setStreamProgress);
+    } catch (e) {
+      document.getElementById('sprog').style.display = 'none';
+      document.getElementById('lineRow').innerHTML = '<div class="empty">未获取到播放源（该频道可能已下线或无公开流）</div>';
+      document.getElementById('hint').textContent = '提示：部分频道无公开播放地址，可返回换其它频道。';
+      return;
+    }
+    document.getElementById('sprog').style.display = 'none';
+    if (!_streams.length) {
+      document.getElementById('lineRow').innerHTML = '<div class="empty">该频道暂无可用播放源</div>';
+      return;
+    }
+    document.getElementById('srcCount').textContent = _streams.length + ' 条';
+    document.getElementById('lineRow').innerHTML = _streams.map((s, i) => {
+      const ref = s.referrer ? '<span class="q ref" title="' + window.MpUI.esc(s.referrer) + '">Ref</span>' : '';
+      const lab = (s.labels && s.labels.length) ? '<span class="q warn" title="' + window.MpUI.esc(s.labels.join('、')) + '">⚠</span>' : '';
+      return `<div class="src-chip${i === 0 ? ' active' : ''}" onclick="playSrc(${i})">
+        ${s.quality ? '<span class="q">' + window.MpUI.esc(s.quality) + '</span>' : ''}${ref}${lab}
+        <span class="t">${window.MpUI.esc(s.title || ('源 ' + (i + 1)))}</span></div>`;
+    }).join('');
+    playSrc(0);
+    try { window.AppStore.addHistory(cur); } catch (e) {}
+  }
+  MpPageLifeCycle.init({
+    onLoad: (data) => { loadStreams(data.c, data.name); },
+    onShow: () => {}, onHide: () => { destroyHls(); }, onDestroy: () => { destroyHls(); }
+  });
+</script>
+</html>
